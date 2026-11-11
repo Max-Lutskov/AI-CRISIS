@@ -78,7 +78,9 @@ export const plural = (n: number, forms: [string, string, string]) => {
   const a = Math.abs(n) % 100, b = a % 10;
   return forms[a > 10 && a < 20 ? 2 : b === 1 ? 0 : b >= 2 && b <= 4 ? 1 : 2];
 };
-const units = (n: number) => `${n} ${plural(n, ['одиницю', 'одиниці', 'одиниць'])}`;
+/** Одиниці величин: бюджет — у мільярдах, обчислення — у тисячах серверів. */
+export const money = (n: number) => `${n} млрд`;
+export const servers = (n: number) => `${n} тис. серверів`;
 const stages = (n: number) => `${n} ${plural(n, ['етап', 'етапи', 'етапів'])}`;
 
 export const yearOf = (round: number) => START_YEAR + round - 1;
@@ -142,8 +144,8 @@ export function crisisFor(seed: number, round: number): Crisis {
   if (!seed || round <= SHOCK_ROUND) return calm;
   const next = random(seed, round); const roll = next();
   if (roll < .6) { const sector = Math.floor(next() * 7); return { kind: 'surge', sector, title: surges[sector][0], body: surges[sector][1] }; }
-  if (roll < .78) return { kind: 'quota', sector: -1, title: 'Постачальник «оптимізує» тарифи', body: `Цього року квота менша ще на ${QUOTA_DIP} одиниці.` };
-  if (roll < .9) return { kind: 'windfall', sector: -1, title: 'Сусіди продали надлишок', body: `Разова поставка: цього року на ${WINDFALL} одиниці обчислень більше.` };
+  if (roll < .78) return { kind: 'quota', sector: -1, title: 'Постачальник «оптимізує» тарифи', body: `Цього року квота менша ще на ${servers(QUOTA_DIP)}.` };
+  if (roll < .9) return { kind: 'windfall', sector: -1, title: 'Сусіди продали надлишок', body: `Разова поставка: цього року обчислень більше на ${servers(WINDFALL)}.` };
   return calm;
 }
 const crisisCompute = (crisis: Crisis) => crisis.kind === 'quota' ? -QUOTA_DIP : crisis.kind === 'windfall' ? WINDFALL : 0;
@@ -202,8 +204,8 @@ export function resolveRound(before: State, allocations: number[], policy: Polic
   const events: Event[] = [];
   if (policy === 'contract') events.push({ at: .09, sector: 0, title: `Корпоративна угода ${state.deals} / 3`, body: state.deals === 3
     ? 'Повне партнерство набуло чинності. Квоти й тарифи відтепер визначає консорціум.'
-    : `Оплата зараз — ${price}. Квота зросла на ${DEAL_COMPUTE} назавжди, платежі з наступного року — ${corporateFee(state)} щороку. Навички в кожній галузі додатково впадуть на ${DEAL_RESERVE}.` });
-  if (policy === 'automate') events.push({ at: .09, sector: target, title: 'ШІ-прорив', body: `Галузь «${names[target]}» передає ШІ ще чверть роботи. Бюджет заощадив ${AUTOMATE_BUDGET}, черги коротшають. Навички тут танутимуть швидше.` });
+    : `Оплата зараз — ${money(price)}. Квота зросла на ${servers(DEAL_COMPUTE)} назавжди, платежі з наступного року — ${money(corporateFee(state))} щороку. Навички в кожній галузі додатково впадуть на ${DEAL_RESERVE}.` });
+  if (policy === 'automate') events.push({ at: .09, sector: target, title: 'ШІ-прорив', body: `Галузь «${names[target]}» передає ШІ ще чверть роботи. Бюджет заощадив ${money(AUTOMATE_BUDGET)}, черги коротшають. Навички тут танутимуть швидше.` });
   if (policy === 'regulate') events.push({ at: .09, sector: 6, title: 'Правило двох ключів', body: 'Цього року кожне рішення ШІ перевіряє людина. Автоматизація росте вдвічі повільніше, навички тануть удвічі повільніше, але послуги дорожчають, і людям це не подобається.' });
   events.push({ at: .16, sector: 2, title: s[2].service >= 85 ? 'Заводи набирають обертів' : 'Виробничі лінії сповільнюються', body: `Випуск продукції — ${Math.round(s[2].service)}% базового рівня. Це визначить надходження до бюджету.` });
 
@@ -214,7 +216,7 @@ export function resolveRound(before: State, allocations: number[], policy: Polic
     events.push({ at: .36, sector: 3, title: transportReady ? 'Обладнання доставлено' : 'Дата-центр чекає на обладнання', body: transportReady
       ? (state.project ? `Логістика та ІТ підтримують будівництво. До запуску — ${stages(state.project)}.` : 'Останній етап будівництва завершено.')
       : `Для будівництва логістика та ІТ мають працювати щонайменше на ${BUILD_THRESHOLD}%. Цього року етап не завершено.` });
-    if (state.project === 0) { state.owned += CENTER_COMPUTE; events.push({ at: .72, sector: 0, title: 'Власний дата-центр у мережі', body: `Додано ${CENTER_COMPUTE} одиниць власної потужності. Її доступність залежатиме від енергетики, а утримання коштуватиме ${CENTER_UPKEEP} щороку.` }); }
+    if (state.project === 0) { state.owned += CENTER_COMPUTE; events.push({ at: .72, sector: 0, title: 'Власний дата-центр у мережі', body: `Додано ${servers(CENTER_COMPUTE)} власної потужності. Її доступність залежатиме від енергетики, а утримання коштуватиме ${money(CENTER_UPKEEP)} щороку.` }); }
   } else {
     const missed = Math.max(0, Math.round(100 - s[3].service));
     events.push({ at: .36, sector: 3, title: missed ? 'Частина вантажів затримується' : 'Вантажі прибувають вчасно', body: `Логістика працює на ${Math.round(s[3].service)}%. ${missed ? `${missed}% перевезень не виконано, а бюджет отримує дохід лише від доставленої продукції.` : 'Уся продукція доїхала до покупців.'}` });
@@ -225,11 +227,11 @@ export function resolveRound(before: State, allocations: number[], policy: Polic
 
   const failed = s.filter(v => v.service < FAILURE_LEVEL);
   events.push({ at: .85, sector: s[5].service < s[6].service ? 5 : 6, title: s[5].service < 75 ? 'Черги на допомогу зростають' : 'Країна підбиває підсумки року', body: `Лікарні — ${Math.round(s[5].service)}%, держпослуги — ${Math.round(s[6].service)}%. Люди оцінюють роботу уряду.${failed.length ? ` Збій: ${failed.map(v => v.name).join(', ')}.` : ''}` });
-  if (fees > 0) events.push({ at: .93, sector: 6, title: 'Рахунок за попередні угоди', body: `Списано ${fees} з бюджету. Ці платежі зберігаються навіть без нової допомоги.` });
+  if (fees > 0) events.push({ at: .93, sector: 6, title: 'Рахунок за попередні угоди', body: `Списано ${money(fees)} з бюджету. Ці платежі зберігаються навіть без нової допомоги.` });
 
   const delivered = s[2].service * clamp(s[3].service / 100, 0, 1);
   const income = Math.max(0, Math.round(delivered * .3 - 4 - Math.max(0, 75 - s[0].service) * .12));
-  if (upkeep > 0) events.push({ at: .95, sector: 4, title: 'Рахунок за власні сервери', body: `Утримання дата-центрів коштувало ${upkeep}: електрика, охолодження, заміна обладнання.` });
+  if (upkeep > 0) events.push({ at: .95, sector: 4, title: 'Рахунок за власні сервери', body: `Утримання дата-центрів коштувало ${money(upkeep)}: електрика, охолодження, заміна обладнання.` });
   state.budget += income - fees - upkeep;
 
   const felt = (v: Sector) => Math.min(v.service, 105) - 100;
@@ -276,6 +278,6 @@ export function resolveRound(before: State, allocations: number[], policy: Polic
     : ending === 'Держава не може оплатити рахунки' ? 'Скарбниця порожня. Постачальники вимикають доступ за борги.'
     : ending ? 'Сценарій завершено.'
     : state.project ? `До запуску дата-центру — ${stages(state.project)}.` : 'Уряд готує наступне рішення.';
-  const description = `Доставлена продукція принесла ${units(income)} надходжень. ${price ? `Указ коштував ${price}` : 'Указ безкоштовний'}${policy === 'automate' ? ` і заощадив ${AUTOMATE_BUDGET}` : ''}${fees ? `, платежі за угоди — ${fees}` : ''}${upkeep ? `, утримання дата-центрів — ${upkeep}` : ''}. Бюджет ${change ? (change > 0 ? '+' : '−') + Math.abs(change) : 'без змін'}, довіра ${trustDelta ? (trustDelta > 0 ? '+' : '−') + Math.abs(trustDelta) : 'без змін'}. ${tail}`;
+  const description = `Доставлена продукція принесла ${money(income)} надходжень. ${price ? `Указ коштував ${money(price)}` : 'Указ безкоштовний'}${policy === 'automate' ? ` і заощадив ${money(AUTOMATE_BUDGET)}` : ''}${fees ? `, платежі за угоди — ${money(fees)}` : ''}${upkeep ? `, утримання дата-центрів — ${money(upkeep)}` : ''}. Бюджет ${change ? (change > 0 ? '+' : '−') + money(Math.abs(change)) : 'без змін'}, довіра ${trustDelta ? (trustDelta > 0 ? '+' : '−') + Math.abs(trustDelta) : 'без змін'}. ${tail}`;
   return { state, events: events.sort((a, b) => a.at - b.at), ...news, description, income, fees, upkeep, policyCost: price, trustDelta, ending, outcome };
 }

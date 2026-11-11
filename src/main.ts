@@ -2,7 +2,7 @@ import './style.css';
 import { audio } from './audio';
 import {
   initialState, resolveRound, forecastFor, policyCost, corporateFee, canChoose, availableCompute, landingChecks, surgeOf, need, totalNeed, plural,
-  phaseOf, yearOf, policiesFor, needsTarget, chronicle, averageReserve, averageAutomation, weakestReserve, centerUpkeep, prepTrust,
+  phaseOf, yearOf, policiesFor, money, needsTarget, chronicle, averageReserve, averageAutomation, weakestReserve, centerUpkeep, prepTrust,
   symbols, names, AUTOMATE_BUDGET, AUTOMATE_GAIN, AUTOMATE_TRUST, BUILD_THRESHOLD, CENTER_COMPUTE, CENTER_STAGES, CENTER_STEP, CENTER_UPKEEP, COLLAPSE_LEVEL, DEAL_COMPUTE, DEAL_FEE, DEAL_RESERVE, DEAL_TRUST,
   ELECTION, FAILURE_LEVEL, LAST_ROUND, MANUAL_TRUST, MAX_PER_SECTOR, PREP_TRUST, REGULATE_TRUST, SHOCK_ROUND, START_YEAR, SURVIVED, TRUST_FLOOR, TRUST_WEIGHTS, VICTORY, WIN,
   type Policy, type Result, type State,
@@ -39,15 +39,15 @@ const sectorArt = ['it', 'education', 'industry', 'logistics', 'energy', 'hospit
 type Effect = [label: string, value: string, tone: 'good' | 'bad' | 'plain'];
 const policyData: Record<Policy, { title: string; art: string; text: string; effects: Effect[] }> = {
   automate: { title: 'ШІ-прорив у галузі', art: 'contract', text: 'Передати ШІ ще чверть роботи в обраній галузі. Дешевше, швидше, і люди задоволені. Поки ШІ дешевий.',
-    effects: [['ШІ робить у галузі', `+${AUTOMATE_GAIN}%`, 'plain'], ['Бюджет', `+${AUTOMATE_BUDGET}`, 'good'], ['Довіра', `+${AUTOMATE_TRUST}`, 'good'], ['Навички там', 'тануть швидше', 'bad']] },
+    effects: [['ШІ робить у галузі', `+${AUTOMATE_GAIN}%`, 'plain'], ['Бюджет', `+${money(AUTOMATE_BUDGET)}`, 'good'], ['Довіра', `+${AUTOMATE_TRUST}`, 'good'], ['Навички там', 'тануть швидше', 'bad']] },
   regulate: { title: 'Правило двох ключів', art: 'manual', text: 'Цього року кожне рішення ШІ перевіряє людина. Залежність росте вдвічі повільніше, але все довше й дорожче.',
     effects: [['Ріст ШІ цього року', 'удвічі менший', 'good'], ['Втрата навичок', 'удвічі менша', 'good'], ['Довіра', `−${REGULATE_TRUST}`, 'bad']] },
   train: { title: 'Повернути навички', art: 'train', text: 'Практика без ШІ в обраній галузі. Цього року працюємо повільніше, зате люди пам’ятатимуть, як це робиться.',
     effects: [['Навички галузі', 'до +15', 'good'], ['Послуги галузі', '−15%', 'bad']] },
-  center: { title: 'Власний дата-центр', art: 'center', text: `Будівництво державних серверів. Етап зараховується, лише коли логістика та ІТ працюють. Кожен наступний дата-центр дорожчий на ${CENTER_STEP}.`,
-    effects: [['Свої обчислення', `+${CENTER_COMPUTE}`, 'good'], ['Будівництво', `${CENTER_STAGES} роки`, 'plain'], ['ІТ і логістика', `від ${BUILD_THRESHOLD}%`, 'plain'], ['Утримання щороку', `−${CENTER_UPKEEP}`, 'bad']] },
+  center: { title: 'Власний дата-центр', art: 'center', text: `Будівництво державних серверів. Етап зараховується, лише коли логістика та ІТ працюють. Кожен наступний дата-центр дорожчий на ${money(CENTER_STEP)}.`,
+    effects: [['Свої сервери', `+${CENTER_COMPUTE} тис.`, 'good'], ['Будівництво', `${CENTER_STAGES} роки`, 'plain'], ['ІТ і логістика', `від ${BUILD_THRESHOLD}%`, 'plain'], ['Утримання щороку', `−${money(CENTER_UPKEEP)}`, 'bad']] },
   contract: { title: 'Прийняти допомогу', art: 'contract', text: 'Корпорація розширить квоту вже цього року й назавжди. З кожною угодою її голос у державі важить більше.',
-    effects: [['Квота назавжди', `+${DEAL_COMPUTE}`, 'good'], ['Бюджет щороку', `−${DEAL_FEE}`, 'bad'], ['Навички всіх', `−${DEAL_RESERVE}`, 'bad'], ['Довіра', `−${DEAL_TRUST}`, 'bad']] },
+    effects: [['Квота назавжди', `+${DEAL_COMPUTE} тис.`, 'good'], ['Бюджет щороку', `−${money(DEAL_FEE)}`, 'bad'], ['Навички всіх', `−${DEAL_RESERVE}`, 'bad'], ['Довіра', `−${DEAL_TRUST}`, 'bad']] },
   manual: { title: 'Ручний режим', art: 'manual', text: 'Перевести обрану галузь на роботу без ШІ наказом. Безкоштовно для бюджету, дорого для людей.',
     effects: [['Навички галузі', 'до +22', 'good'], ['Послуги галузі', '−35%', 'bad'], ['Довіра', `−${MANUAL_TRUST}`, 'bad']] },
 };
@@ -67,20 +67,20 @@ const sentence = (text: string) => /[.?!]$/.test(text) ? text : text + '.';
 function tune() {
   const now = screen === 'city' && result ? result.state : state;
   const stress = phaseOf(now) === 'boom' ? 0 : (WIN.trust + 15 - now.trust) / 40 + now.sectors.filter(s => s.service < WIN.service).length * .15;
-  audio.scene(menuOpen || screen === 'intro' ? 'menu' : phaseOf(now), menuOpen ? 'none' : screen === 'city' ? 'city' : screen === 'cabinet' ? 'office' : 'none', stress);
+  audio.scene(menuOpen || screen === 'intro' ? 'menu' : phaseOf(now), menuOpen ? 'none' : screen === 'city' ? 'city' : screen === 'cabinet' ? 'office' : 'none', stress, now.sectors.reduce((sum, s) => sum + s.service, 0) / 700);
 }
 
 function header() {
   const round = result?.ending && screen === 'paper' ? state.round - 1 : Math.min(state.round, LAST_ROUND);
   const compute = boom() ? '<div><span>Обчислення</span><b class="chip">без ліміту</b></div>'
-    : screen === 'cabinet' ? `<div><span>Вільні обчислення</span><b class="chip" id="compute-chip"><strong id="remaining">0</strong><i>/</i><strong id="capacity">${state.capacity}</strong></b></div>`
-    : `<div><span>Обчислення</span><b class="chip"><strong id="capacity">${state.capacity}</strong></b></div>`;
+    : screen === 'cabinet' ? `<div><span>Вільні сервери, тис.</span><b class="chip" id="compute-chip"><strong id="remaining">0</strong><i>/</i><strong id="capacity">${state.capacity}</strong></b></div>`
+    : `<div><span>Сервери, тис.</span><b class="chip"><strong id="capacity">${state.capacity}</strong></b></div>`;
   return `<header class="masthead">
     <a class="brand" href="#" aria-label="AI Crisis"><img src="assets/ui/emblem.webp" alt=""><span>AI CRISIS<small>Кабінет останньої надії</small></span></a>
     <div class="hud">
       <div><span>Рік</span><b>${yearOf(round)}<i class="of"> · ${round}/${LAST_ROUND}</i></b></div>
       <div><span>Довіра</span><b class="chip ${trustTone(state.trust)}" id="trust">${state.trust}%</b></div>
-      <div><span>Бюджет</span><b class="chip" id="budget">${state.budget}</b></div>
+      <div><span>Бюджет</span><b class="chip"><strong id="budget">${state.budget}</strong><small class="unit">млрд</small></b></div>
       ${compute}
     </div>
     <div class="header-actions">
@@ -112,7 +112,7 @@ function preview(): Result | null {
 // ── Вступ ───────────────────────────────────────────────────────────────────
 const slides = [
   { year: '2022', title: 'З’явився штучний інтелект', art: 'news-photo', text: 'Програми навчилися писати, рахувати, планувати й радити не гірше за фахівця. Доступ коштує копійки: компанії-постачальники роздають його майже задарма, аби всі звикли.' },
-  { year: String(START_YEAR), title: 'Ви очолюєте уряд', art: 'sector-government', text: 'Сім галузей країни тримаються на людях, які знають свою справу. ШІ обіцяє робити те саме швидше й дешевше. Щороку ви підписуєте один указ і дивитеся, що з цього вийшло.' },
+  { year: String(START_YEAR), title: 'Ви очолюєте уряд', art: 'sector-government', text: 'Сім галузей країни тримаються на людях, які знають свою справу. ШІ обіцяє робити те саме швидше й дешевше. Щороку ви підписуєте один указ і дивитеся, що з цього вийшло. Бюджет рахуємо в мільярдах, обчислення — в тисячах серверів.' },
   { year: 'Правила', title: 'Два числа кожної галузі', art: 'policy-train', text: '<b>ШІ робить</b> — яку частку роботи передано машині. Що вона більша, то кращі послуги, але то більше обчислень потрібно. <b>Навички</b> — скільки галузь потягне сама, якщо ШІ вимкнуть. Що більше роботи робить ШІ, то швидше люди забувають, як робити її самим.' },
   { year: `Мета · ${LAST_YEAR}`, title: 'Довести країну до кінця', art: 'policy-center', text: `Ніхто не знає, скільки триватиме дешевий ШІ. До ${LAST_YEAR} року треба зберегти три речі: <b>люди довіряють уряду</b> (від ${WIN.trust}%), <b>кожна галузь працює</b> (від ${WIN.service}%), <b>у кожній галузі вміють без ШІ</b> (навички від ${WIN.reserve}%). У ${ELECTION_YEAR}-му вибори: з довірою нижче ${ELECTION}% вас не переоберуть.` },
 ];
@@ -142,7 +142,7 @@ function cabinet() {
   fitAllocations();
   const crisis = state.crisis; const isBoom = boom(); const year = yearOf(state.round);
   const story = chronicle[state.round];
-  const cost = (id: Policy) => id === 'center' && state.project ? 'Вже будується' : policyCost(state, id) ? `Бюджет: ${policyCost(state, id)}` : 'Безкоштовно';
+  const cost = (id: Policy) => id === 'center' && state.project ? 'Вже будується' : policyCost(state, id) ? `Ціна: ${money(policyCost(state, id))}` : 'Безкоштовно';
   const showCrisis = !isBoom && state.round > SHOCK_ROUND;
   app.innerHTML = `${header()}<main class="desk ${isBoom ? 'boom' : 'deficit'}" data-step="0">
     <footer class="dock">
@@ -161,7 +161,7 @@ function cabinet() {
           <div class="sector-art" style="background-image:url(assets/ui/sector-${sectorArt[i]}.webp)"></div>
           <div class="service-label"><span>Послуги</span><b id="service-${i}"></b></div>
           <div class="meter"><i id="meter-${i}"></i></div>
-          <div class="reserve-label"><span>Навички <b>${pct(s.reserve)}</b></span><span class="need">${isBoom ? `ШІ робить <b>${pct(s.automation)}</b>` : `Потреба ${comma(need(s, surgeOf(state, i)))}${surgeOf(state, i) > 1 ? ' ▲' : ''}`}</span></div>
+          <div class="reserve-label"><span>Навички <b>${pct(s.reserve)}</b></span><span class="need">${isBoom ? `ШІ робить <b>${pct(s.automation)}</b>` : `Потреба ${comma(need(s, surgeOf(state, i)))} тис.${surgeOf(state, i) > 1 ? ' ▲' : ''}`}</span></div>
           ${isBoom ? '' : `<div class="allocation-control"><button data-adjust="${i},-1" aria-label="Менше обчислень для ${s.name}">−</button><strong id="allocation-${i}">${allocations[i]}</strong><button data-adjust="${i},1" aria-label="Більше обчислень для ${s.name}">+</button></div>`}
         </article>`).join('')}
         <aside class="sector-side">
@@ -211,7 +211,7 @@ function cabinet() {
       <span class="eyebrow">Мета до ${LAST_YEAR} року</span>
       ${checklist()}
       <p class="floor-note">${goalNote()}</p>
-      <div class="project-note">${state.project ? `Дата-центр: до запуску ${stagesLeft(state.project)}` : `Власні обчислення: ${state.owned} од.`}<br>${isBoom ? 'Імпортний ШІ: без обмежень, майже задарма' : `Імпортна квота: ${state.imports} од., щороку менше`}</div>
+      <div class="project-note">${state.project ? `Дата-центр: до запуску ${stagesLeft(state.project)}` : `Власні сервери: ${state.owned} тис.`}<br>${isBoom ? 'Імпортний ШІ: без обмежень, майже задарма' : `Імпортна квота: ${state.imports} тис. серверів, щороку менше`}</div>
       ${isBoom ? '' : `<div class="deal-note">Угоди з корпорацією <b>${state.deals} / 3</b></div>`}
       <div class="deal-note">Сід партії <b>${seed}</b></div>
       <div class="brief-links"><button class="text-button" id="how-to">Як грати</button><button class="text-button" id="restart">Нова партія ↺</button></div>
@@ -220,7 +220,7 @@ function cabinet() {
   <div id="stamp" aria-hidden="true">ЗАТВЕРДЖЕНО</div>
   <dialog id="restart-dialog"><h2>Почати спочатку?</h2><p>Поточні рішення буде скасовано.</p><button id="confirm-restart">Так, нова партія</button><button id="replay-seed">Той самий сід</button><button id="cancel-restart">Повернутися</button></dialog>
   <dialog id="shock-dialog" class="shock"><span class="intro-year">${yearOf(SHOCK_ROUND)}</span><h2>Дешевий ШІ закінчився</h2>
-    <p>Постачальники перестали працювати у збиток. Країні потрібно <b>${Math.round(totalNeed(state))}</b> одиниць обчислень на рік, а доступно лише <b>${state.capacity}</b>. Імпортна квота меншатиме щороку.</p>
+    <p>Постачальники перестали працювати у збиток. Країні потрібно обчислень на <b>${Math.round(totalNeed(state))} тис. серверів</b>, а доступно лише <b>${state.capacity} тис.</b> Імпортна квота меншатиме щороку.</p>
     <p>Відтепер ви щороку <b>ділите обчислення між галузями</b>. Кому не вистачило, той працює лише на навичках людей. З’явилися й нові укази: угода з корпорацією та ручний режим.</p>
     <button class="sign-button" id="shock-ok">До кабінету</button></dialog>`;
   bindHeader(); updateCabinet();
@@ -309,17 +309,17 @@ function updateCabinet() {
     tabTrust.textContent = `довіра ${signed(outcome.trustDelta)}`; tabTrust.className = outcome.trustDelta < 0 ? 'danger' : '';
     const third = isBoom
       ? `<div><b>${pct(averageAutomation(next))}</b><span>роботи робить ШІ (${signed(Math.round(averageAutomation(next) - averageAutomation(state)))})</span></div>`
-      : state.round < LAST_ROUND ? `<div><b>${next.imports + Math.floor(next.owned * Math.min(1, next.sectors[4].service / 100))}</b><span>обчислень наступного року</span></div>`
+      : state.round < LAST_ROUND ? `<div><b>${next.imports + Math.floor(next.owned * Math.min(1, next.sectors[4].service / 100))}</b><span>тис. серверів наступного року</span></div>`
       : `<div><b>${LAST_YEAR}</b><span>останній рік</span></div>`;
     strip.innerHTML = `<span class="eyebrow">Прогноз на ${yearOf(state.round)} рік</span>
       <div class="forecast-items">
         <div><b class="${outcome.trustDelta < 0 ? 'danger' : 'good'}">${signed(outcome.trustDelta)}</b><span>довіра → ${next.trust}%</span></div>
-        <div><b class="${next.budget < state.budget ? 'warning' : 'good'}">${signed(next.budget - state.budget)}</b><span>бюджет → ${next.budget}</span></div>
+        <div><b class="${next.budget < state.budget ? 'warning' : 'good'}">${signed(next.budget - state.budget)}</b><span>бюджет → ${money(next.budget)}</span></div>
         ${third}
         <div><b>${pct(averageReserve(next))}</b><span>навички (${signed(Math.round(averageReserve(next) - averageReserve(state)))}), найменше ${pct(weakestReserve(next))}</span></div>
       </div>
       ${building ? `<p class="${built ? 'good' : 'danger'}">${built ? `✓ Етап будівництва буде завершено${next.project ? `, залишиться ${stagesLeft(next.project)}` : ' — дата-центр запрацює'}.` : `✗ Будівництво стоятиме: потрібно ІТ і логістику від ${BUILD_THRESHOLD}%, зараз ${it}% і ${logistics}%.`}</p>` : ''}
-      ${free > 0 ? `<p class="warning">Нерозподілено: ${free} ${plural(free, ['одиниця', 'одиниці', 'одиниць'])} обчислень. <button class="text-button goto-sectors" data-goto="1">Розподілити →</button></p>` : ''}
+      ${free > 0 ? `<p class="warning">Нерозподілено: ${free} тис. серверів. <button class="text-button goto-sectors" data-goto="1">Розподілити →</button></p>` : ''}
       ${outcome.ending && outcome.outcome === 'defeat' && !(policy === 'contract' && state.deals === 2) ? `<p class="danger">Цей указ завершить партію: ${outcome.ending.toLowerCase()}.</p>` : ''}`;
   } else { tabTrust.textContent = ''; strip.innerHTML = '<span class="eyebrow">Прогноз</span><p class="danger">Цей указ зараз недоступний.</p>'; }
 
@@ -327,8 +327,8 @@ function updateCabinet() {
   const terms = $('#contract-terms');
   terms.hidden = policy !== 'contract' && state.deals === 0;
   terms.innerHTML = policy === 'contract'
-    ? `<strong>Угода ${state.deals + 1} / 3 · ${last ? 'ПОВНЕ ПАРТНЕРСТВО' : 'КОНТРАКТ ІЗ ЗОБОВ’ЯЗАННЯМИ'}</strong><p>Зараз −${policyCost(state, policy)}. З наступного року −${(state.deals + 1) * DEAL_FEE} щороку, навіть без нової допомоги. Квота +${DEAL_COMPUTE} назавжди, навички −${DEAL_RESERVE} додатково в усіх галузях.</p><p>${last ? '«Дефіцит закінчиться вже сьогодні. Керування квотами й тарифами консорціум бере на себе — вам більше не доведеться про це думати».' : state.deals === 1 ? '«Ми вже майже одна команда. Наступного разу запропонуємо повне партнерство».' : '«Жодних прихованих умов. Ми просто хочемо допомогти».'}</p>`
-    : `<strong>Рахунки за попередні угоди · −${corporateFee(state)} щороку</strong>`;
+    ? `<strong>Угода ${state.deals + 1} / 3 · ${last ? 'ПОВНЕ ПАРТНЕРСТВО' : 'КОНТРАКТ ІЗ ЗОБОВ’ЯЗАННЯМИ'}</strong><p>Зараз −${money(policyCost(state, policy))}. З наступного року −${money((state.deals + 1) * DEAL_FEE)} щороку, навіть без нової допомоги. Квота +${DEAL_COMPUTE} тис. серверів назавжди, навички −${DEAL_RESERVE} додатково в усіх галузях.</p><p>${last ? '«Дефіцит закінчиться вже сьогодні. Керування квотами й тарифами консорціум бере на себе — вам більше не доведеться про це думати».' : state.deals === 1 ? '«Ми вже майже одна команда. Наступного разу запропонуємо повне партнерство».' : '«Жодних прихованих умов. Ми просто хочемо допомогти».'}</p>`
+    : `<strong>Рахунки за попередні угоди · −${money(corporateFee(state))} щороку</strong>`;
   const sign = $<HTMLButtonElement>('#sign');
   sign.innerHTML = 'Підписати<br>указ';
   sign.disabled = !outcome;
@@ -410,7 +410,7 @@ function showDistrict() {
   document.querySelectorAll<HTMLElement>('.district').forEach(b => b.classList.toggle('focused', Number(b.dataset.district) === i));
   $('#district-detail').innerHTML = `<span class="eyebrow">${names[i]} · на кінець року</span>
     <div class="detail-numbers"><b class="${tone(s.service)}">${Math.round(s.service)}%<small>послуг</small></b><b>${Math.round(s.reserve)}%<small>навички</small></b></div>
-    <p>${boom() ? `ШІ робить ${pct(s.automation)} роботи галузі.` : `Виділено ${allocations[i]} · потреба ${comma(need(state.sectors[i], surgeOf(state, i)))}${surgeOf(state, i) > 1 ? ' через подію року' : ''}.`}</p>`;
+    <p>${boom() ? `ШІ робить ${pct(s.automation)} роботи галузі.` : `Виділено ${allocations[i]} тис. серверів · потреба ${comma(need(state.sectors[i], surgeOf(state, i)))} тис.${surgeOf(state, i) > 1 ? ' через подію року' : ''}.`}</p>`;
 }
 
 // ── Газета ──────────────────────────────────────────────────────────────────
@@ -432,9 +432,9 @@ function explain(outcome: Result, before: State): { points: string[]; tip: strin
   switch (outcome.ending) {
     case 'Країна за підпискою': return {
       points: [
-        `<b>Угода 1.</b> Консорціум додав ${DEAL_COMPUTE} обчислень до квоти. Ви погодились платити ${DEAL_FEE} щороку.`,
-        `<b>Угода 2.</b> Ще ${DEAL_COMPUTE} обчислень. Плата зросла до ${DEAL_FEE * 2} щороку, навички в галузях упали вдруге.`,
-        `<b>Угода 3, «повне партнерство».</b> Ще ${DEAL_COMPUTE} обчислень, але в умовах було: керування квотами й тарифами переходить до консорціуму.`,
+        `<b>Угода 1.</b> Консорціум додав до квоти ${DEAL_COMPUTE} тис. серверів. Ви погодились платити ${money(DEAL_FEE)} щороку.`,
+        `<b>Угода 2.</b> Ще ${DEAL_COMPUTE} тис. серверів. Плата зросла до ${money(DEAL_FEE * 2)} щороку, навички в галузях упали вдруге.`,
+        `<b>Угода 3, «повне партнерство».</b> Ще ${DEAL_COMPUTE} тис. серверів, але в умовах було: керування квотами й тарифами переходить до консорціуму.`,
         'Вирішувати, кому скільки обчислень дати, — це й була робота уряду. Після третього підпису її виконує консорціум, тому партія закінчилась.',
       ],
       tip: 'Одна або дві угоди лишають країну вашою. З однією ще можна дійти до кінця без втрат, якщо встигнути відновити навички.',
@@ -444,7 +444,7 @@ function explain(outcome: Result, before: State): { points: string[]; tip: strin
         `На виборах ${ELECTION_YEAR} року уряду довіряли ${after.trust}%. Щоб лишитися, потрібно було ${ELECTION}%.`,
         `Кожне «Правило двох ключів» забирає ${REGULATE_TRUST} довіри: людям не подобається, коли все повільніше й дорожче, ніж у сусідів.`,
         `Навчання й дата-центр у роки буму забирають по ${PREP_TRUST}: поки ШІ дешевий, підготовку вважають марнотратством.`,
-        `«ШІ-прорив» навпаки додає ${AUTOMATE_TRUST} довіри й ${AUTOMATE_BUDGET} бюджету, але робить галузь залежною.`,
+        `«ШІ-прорив» навпаки додає ${AUTOMATE_TRUST} довіри й ${money(AUTOMATE_BUDGET)} бюджету, але робить галузь залежною.`,
       ],
       tip: 'Самою обережністю вибори не виграти. Чергуйте: трохи того, що люблять люди, і трохи підготовки. Навчання й дата-центр коштують довіри вдвічі менше за «Правило двох ключів».',
     };
@@ -462,14 +462,14 @@ function explain(outcome: Result, before: State): { points: string[]; tip: strin
     }
     case 'Держава не може оплатити рахунки': return {
       points: [
-        `На початку року в бюджеті було ${before.budget}.`,
-        outcome.policyCost ? `Указ «${policyTitle()}» коштував ${outcome.policyCost}.` : `Указ «${policyTitle()}» був безкоштовний.`,
-        `Надходження — лише ${outcome.income}: промисловість працювала на ${pct(s[2].service)}, логістика довезла ${pct(Math.min(100, s[3].service))} продукції.`,
-        `Платежі за ${before.deals} ${plural(before.deals, ['угоду', 'угоди', 'угод'])} з корпорацією — ${outcome.fees}.`,
-        ...(outcome.upkeep ? [`Утримання власних дата-центрів — ${outcome.upkeep}.`] : []),
-        `Підсумок: −${Math.abs(after.budget)}. Бюджет нижче нуля означає банкрутство.`,
+        `На початку року в бюджеті було ${money(before.budget)}.`,
+        outcome.policyCost ? `Указ «${policyTitle()}» коштував ${money(outcome.policyCost)}.` : `Указ «${policyTitle()}» був безкоштовний.`,
+        `Надходження — лише ${money(outcome.income)}: промисловість працювала на ${pct(s[2].service)}, логістика довезла ${pct(Math.min(100, s[3].service))} продукції.`,
+        `Платежі за ${before.deals} ${plural(before.deals, ['угоду', 'угоди', 'угод'])} з корпорацією — ${money(outcome.fees)}.`,
+        ...(outcome.upkeep ? [`Утримання власних дата-центрів — ${money(outcome.upkeep)}.`] : []),
+        `Підсумок: −${money(Math.abs(after.budget))}. Бюджет нижче нуля означає банкрутство.`,
       ],
-      tip: `Гроші дає промисловість, помножена на логістику. Кожна угода забирає ${DEAL_FEE} щороку до кінця партії, тому дві угоди потребують працюючих заводів.`,
+      tip: `Гроші дає промисловість, помножена на логістику. Кожна угода забирає ${money(DEAL_FEE)} щороку до кінця партії, тому дві угоди потребують працюючих заводів.`,
     };
     case 'Уряд втратив контроль': return {
       points: [
@@ -490,7 +490,7 @@ function explain(outcome: Result, before: State): { points: string[]; tip: strin
     default: return {
       points: [
         `Довіра ${after.trust}%, найслабша галузь ${pct(Math.min(...s.map(v => v.service)))}, навички щонайменше ${pct(weakestReserve(after))}.`,
-        `Власних обчислень — ${after.owned}, угод із корпорацією — ${after.deals} з 3, у бюджеті лишилось ${after.budget}.`,
+        `Власних серверів — ${after.owned} тис., угод із корпорацією — ${after.deals} з 3, у бюджеті лишилось ${money(after.budget)}.`,
       ],
       tip: after.deals ? 'Ви впоралися з угодою. Спробуйте дійти сюди ж без жодної.' : 'Ви впоралися без угод. Спробуйте інший сід або ризикованіший бум: більше проривів, менше підготовки.',
     };
@@ -506,8 +506,8 @@ function finishRound() {
   const label = outcome.ending === 'Країна за підпискою' ? 'НЕЗАЛЕЖНІСТЬ ВТРАЧЕНО' : outcome.outcome === 'defeat' ? 'ПОРАЗКА' : outcome.outcome === 'victory' ? 'ПЕРЕМОГА' : 'НЕПОВНА ПЕРЕМОГА';
   const next = chronicle[state.round];
   const teaser = outcome.ending ? '' : next
-    ? `<p class="tomorrow"><b>${yearOf(state.round)} рік: ${next.headline.toLowerCase()}.</b> ${state.round === SHOCK_ROUND ? `Обчислень буде лише ${state.capacity}.` : 'ШІ дешевшає, галузі спираються на нього дедалі більше.'}</p>`
-    : `<p class="tomorrow"><b>${yearOf(state.round)} рік: ${state.crisis.title.toLowerCase()}.</b> ${state.crisis.body} Обчислень буде ${state.capacity}.</p>`;
+    ? `<p class="tomorrow"><b>${yearOf(state.round)} рік: ${next.headline.toLowerCase()}.</b> ${state.round === SHOCK_ROUND ? `Серверів буде лише ${state.capacity} тис.` : 'ШІ дешевшає, галузі спираються на нього дедалі більше.'}</p>`
+    : `<p class="tomorrow"><b>${yearOf(state.round)} рік: ${state.crisis.title.toLowerCase()}.</b> ${state.crisis.body} Серверів буде ${state.capacity} тис.</p>`;
   app.innerHTML = `${header()}<main class="report-desk"><article class="report paper">
     <div class="report-top"><span>НЕЗАЛЕЖНЕ ВИДАННЯ</span><span>ПІДСУМКИ ${yearOf(before.round)} РОКУ</span><span>СІД ${seed}</span></div>
     <h1 class="report-name">Урядовий вісник · ${yearOf(before.round)}</h1><div class="report-subtitle">КРАЇНА ПІСЛЯ ВАШОГО РІШЕННЯ</div>
@@ -516,11 +516,11 @@ function finishRound() {
     <div class="report-columns">
       <div><div class="report-photo"></div><p class="caption">Життя країни після указу «${played}».</p><p class="report-lead">${outcome.ending || outcome.lead.title !== outcome.headline ? `<b>${sentence(outcome.lead.title)}</b> ` : ''}${outcome.lead.body}</p><p class="report-facts">${outcome.description}</p></div>
       <div class="report-analysis"><h3>Ціна рішення</h3>
-        <p>${outcome.policyCost ? `Указ коштував ${outcome.policyCost}.` : 'Указ не коштував бюджету нічого.'}${outcome.fees ? ` Платежі за угоди — ${outcome.fees}.` : ''}${outcome.upkeep ? ` Утримання дата-центрів — ${outcome.upkeep}.` : ''}${state.deals ? ` Надалі корпорація братиме ${corporateFee(state)} щороку.` : ''}${centerUpkeep(state) > outcome.upkeep ? ` Власні сервери відтепер коштують ${centerUpkeep(state)} щороку.` : ''}</p>
+        <p>${outcome.policyCost ? `Указ коштував ${money(outcome.policyCost)}.` : 'Указ не коштував бюджету нічого.'}${outcome.fees ? ` Платежі за угоди — ${money(outcome.fees)}.` : ''}${outcome.upkeep ? ` Утримання дата-центрів — ${money(outcome.upkeep)}.` : ''}${state.deals ? ` Надалі корпорація братиме ${money(corporateFee(state))} щороку.` : ''}${centerUpkeep(state) > outcome.upkeep ? ` Власні сервери відтепер коштують ${money(centerUpkeep(state))} щороку.` : ''}</p>
         <p>ШІ робить у середньому ${pct(averageAutomation(state))} роботи (${signed(Math.round(averageAutomation(state) - averageAutomation(before)))}), навички людей — ${pct(averageReserve(state))} (${signed(Math.round(averageReserve(state) - averageReserve(before)))}).</p>
         <p>Найбільше підтримки потребує галузь «${worst.name}» — ${Math.round(worst.service)}% послуг.</p>
         ${teaser}
-        <div class="report-numbers"><div><strong>${state.trust}%</strong><span>довіра (${signed(outcome.trustDelta)})</span></div><div><strong>+${outcome.income}</strong><span>надходження</span></div><div><strong>${state.budget}</strong><span>бюджет</span></div></div>
+        <div class="report-numbers"><div><strong>${state.trust}%</strong><span>довіра (${signed(outcome.trustDelta)})</span></div><div><strong>+${outcome.income}</strong><span>надходження, млрд</span></div><div><strong>${state.budget}</strong><span>бюджет, млрд</span></div></div>
       </div>
     </div>
     ${outcome.stories.length ? `<section class="report-stories"><span class="eyebrow">Тим часом у країні</span><div>${outcome.stories.map(story => `<article><span class="eyebrow">${symbols[story.sector]} ${names[story.sector]}</span><h3>${story.title}</h3><p>${story.body}</p></article>`).join('')}</div></section>` : ''}
@@ -561,7 +561,7 @@ function openMenu(armed: 'new' | 'same' | null = null) {
   const over = !!result?.ending && screen === 'paper';
   const status = !begun ? 'Країна підсіла на дешевий ШІ. Дешевий ШІ не вічний.'
     : over ? `Партію завершено: ${result!.ending!.toLowerCase()}. Сід ${seed}.`
-    : `${yearOf(Math.min(state.round, LAST_ROUND))} рік · довіра ${state.trust}% · бюджет ${state.budget} · сід ${seed}`;
+    : `${yearOf(Math.min(state.round, LAST_ROUND))} рік · довіра ${state.trust}% · бюджет ${money(state.budget)} · сід ${seed}`;
   const restartButton = (kind: 'new' | 'same', label: string) => `<button data-restart="${kind}" class="${armed === kind ? 'armed' : ''}">${armed === kind ? 'Точно? Поточну партію буде втрачено' : label}</button>`;
   menu.innerHTML = `<div class="menu-card paper">
     <img src="assets/ui/emblem.webp" alt="">

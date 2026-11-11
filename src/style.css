@@ -534,8 +534,9 @@ dialog.shock p { font: 16px/1.6 Georgia, serif; margin: 12px 0; }
   .district em { display: none; }
   .district span { font-size: 13px; } .district b { font-size: 14px; margin: 0; }
   .district-glow { width: 80px; height: 56px; }
-  .live-panel { position: relative; inset: auto; width: auto; max-height: 52%; margin: 0 8px; padding: 10px 12px; display: flex; flex-direction: column; }
-  .event-feed { order: -1; border: 0; padding: 0 0 8px; }
+  /* Висота панелі стала: інакше довший текст події стискав би карту, і картки галузей стрибали б. */
+  .live-panel { position: relative; inset: auto; flex: none; width: auto; height: 46%; max-height: none; overflow: hidden; margin: 0 8px; padding: 10px 12px; display: flex; flex-direction: column; }
+  .event-feed { order: -1; flex: 1; min-height: 0; overflow: auto; border: 0; padding: 0 0 8px; }
   .live-stats { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; margin: 0; border-top: 3px double #6b604966; padding-top: 4px; }
   .live-stats button { padding: 6px 0; font-size: 13px; }
   #district-detail { display: none; }
@@ -588,3 +589,6 @@ dialog.shock p { font: 16px/1.6 Georgia, serif; margin: 12px 0; }
 .menu-volume { display: grid; gap: 8px; margin-top: 10px; padding-top: 12px; border-top: 3px double #34392f; }
 .menu-volume label { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 12px; text-align: left; font: 600 13px 'Barlow', sans-serif; color: var(--ink-soft); }
 .menu-volume input { width: 100%; accent-color: var(--red); }
+
+/* Одиниця величини поруч із числом */
+.unit { margin-left: 4px; font: 600 .62em 'Barlow', sans-serif; letter-spacing: .3px; opacity: .75; }

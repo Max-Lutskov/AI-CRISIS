@@ -13,8 +13,8 @@ try { Object.assign(volume, JSON.parse(localStorage.getItem(KEY) ?? '{}')); } ca
 let ctx: AudioContext | null = null;
 let musicBus: GainNode, sfxBus: GainNode, airBus: GainNode, hall: GainNode, echo: GainNode;
 let hiss: AudioBuffer;
-let mood: Mood = 'menu', place: Place = 'none', tension = 0;
-let nextBar = 0, bar = 0, nextAir = 0, nextTick = 0, last = 69;
+let mood: Mood = 'menu', place: Place = 'none', tension = 0, life = 1;
+let nextBar = 0, bar = 0, nextAir = 0, nextCar = 0, nextTick = 0, last = 69;
 let hum: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
 
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
@@ -85,15 +85,15 @@ const effects: Record<Sfx, () => void> = {
   up: () => { tone(540, { type: 'triangle', to: 720, dur: .07, gain: .09 }); noise({ filter: 'highpass', freq: 3200, dur: .02, gain: .05 }); },
   down: () => { tone(460, { type: 'triangle', to: 330, dur: .07, gain: .09 }); noise({ filter: 'highpass', freq: 3200, dur: .02, gain: .05 }); },
   // Картку указу кладуть на стіл.
-  card: () => { noise({ freq: 1400, to: 2800, dur: .14, gain: .1, attack: .03 }); tone(170, { to: 110, dur: .08, gain: .16, at: .1 }); },
-  paper: () => { noise({ freq: 900, to: 3400, dur: .26, gain: .11, attack: .06, q: .7 }); noise({ freq: 2600, to: 1200, dur: .2, gain: .06, attack: .05, at: .16 }); },
+  card: () => { noise({ freq: 1400, to: 2800, dur: .14, gain: .3, attack: .03 }); tone(170, { to: 110, dur: .08, gain: .16, at: .1 }); },
+  paper: () => { noise({ freq: 900, to: 3400, dur: .26, gain: .32, attack: .06, q: .7 }); noise({ freq: 2600, to: 1200, dur: .2, gain: .18, attack: .05, at: .16 }); },
   // Печатка: глухий удар, клацання механізму й відгук кімнати.
   stamp: () => { tone(120, { to: 36, dur: .32, gain: .8, wet: .25 }); noise({ filter: 'lowpass', freq: 900, dur: .1, gain: .5 }); noise({ freq: 3200, dur: .04, gain: .12, at: .07 }); },
   // Телетайп: кілька ударів літер і дзвоник у кінці рядка.
   wire: () => { for (let i = 0; i < 5; i++) noise({ filter: 'highpass', freq: between(2400, 3800), dur: .02, gain: .09, at: i * .055 + between(0, .012) }); tone(1320, { dur: .6, gain: .05, at: .3, wet: .4 }); tone(1980, { dur: .4, gain: .02, at: .3, wet: .4 }); },
   alarm: () => { for (let i = 0; i < 2; i++) { tone(466, { type: 'square', dur: .2, gain: .035, at: i * .44, wet: .3 }); tone(349, { type: 'square', dur: .2, gain: .035, at: i * .44 + .22, wet: .3 }); } },
   // Друкарський верстат: три проходи вала.
-  press: () => { for (let i = 0; i < 3; i++) { noise({ freq: 700, to: 1900, dur: .12, gain: .12, attack: .02, at: i * .15 }); tone(90, { to: 60, dur: .06, gain: .2, at: i * .15 + .1 }); } effects.paper(); },
+  press: () => { for (let i = 0; i < 3; i++) { noise({ freq: 700, to: 1900, dur: .12, gain: .35, attack: .02, at: i * .15 }); tone(90, { to: 60, dur: .06, gain: .2, at: i * .15 + .1 }); } effects.paper(); },
   shock: () => { tone(62, { to: 28, dur: 1.8, gain: .7, wet: .5 }); noise({ filter: 'lowpass', freq: 400, to: 80, dur: 1.2, gain: .35 }); for (const f of [110, 116.5, 155.6]) tone(f, { type: 'sawtooth', dur: 2.4, gain: .035, attack: .4, wet: .6 }); },
   victory: () => [62, 66, 69, 74, 78, 81].forEach((n, i) => { tone(hz(n), { type: 'triangle', dur: 1.1, gain: .1, at: i * .13, wet: .5 }); tone(hz(n + 12), { dur: .8, gain: .03, at: i * .13, wet: .5 }); }),
   defeat: () => { [69, 65, 62, 58].forEach((n, i) => tone(hz(n - 12), { type: 'triangle', dur: 1.6, gain: .12, at: i * .34, attack: .03, wet: .6 })); tone(hz(26), { dur: 3, gain: .4, at: 1.02, wet: .4 }); },
@@ -154,20 +154,38 @@ function setHum(level: number, cutoff: number) {
   }
   hum.gain.gain.setTargetAtTime(level, c.currentTime, .6);
 }
+// Що чути в місті, крім машин. Кожен звук — окрема коротка сценка.
+const street: Record<string, () => void> = {
+  horn: () => { for (const at of [0, .24]) for (const f of [392, 494]) tone(f, { type: 'square', dur: .18, gain: .022, at, out: airBus, wet: .5 }); },
+  tram: () => { for (const at of [0, .32]) { tone(1560, { dur: .7, gain: .05, at, out: airBus, wet: .6 }); tone(2093, { dur: .5, gain: .025, at, out: airBus, wet: .6 }); } },
+  factory: () => { for (let i = 0; i < 4; i++) { noise({ freq: 1700, q: 9, dur: .09, gain: .8, at: i * .46, out: airBus }); tone(196, { type: 'triangle', to: 150, dur: .12, gain: .07, at: i * .46, out: airBus, wet: .5 }); } },
+  birds: () => { for (let i = 0, at = 0; i < 5; i++, at += between(.09, .3)) tone(between(2500, 3100), { to: between(3300, 4200), dur: .09, gain: .035, at, out: airBus, wet: .4 }); },
+  train: () => { for (const f of [277, 349]) tone(f, { type: 'sawtooth', dur: 1.5, gain: .02, attack: .2, out: airBus, wet: .8 }); },
+  crowd: () => { for (let i = 0; i < 3; i++) noise({ freq: between(500, 1100), q: 2, dur: between(1.2, 2.2), gain: .3, attack: .6, at: i * .5, out: airBus }); },
+  siren: () => { for (let i = 0; i < 6; i++) tone(i % 2 ? 620 : 880, { to: i % 2 ? 880 : 620, dur: .7, gain: .05, attack: .1, at: i * .7, out: airBus, wet: .5 }); },
+  wind: () => noise({ freq: 300, to: 700, q: 3, dur: 3.5, gain: .5, attack: 1.6, out: airBus }),
+};
 function air(now: number) {
-  setHum(place === 'city' ? .09 : place === 'office' ? .03 : 0, 320);
+  // Шум після фільтра втрачає майже всю гучність, тому рівні тут великі.
+  setHum(place === 'city' ? .5 + life * .5 : place === 'office' ? .28 : 0, place === 'city' ? 420 : 260);
   if (place === 'office' && now >= nextTick) {
     // Настінний годинник у кабінеті.
-    noise({ filter: 'bandpass', freq: nextTick % 2 < 1 ? 3400 : 2700, q: 6, dur: .03, gain: .03, out: airBus });
+    noise({ freq: nextTick % 2 < 1 ? 3400 : 2700, q: 5, dur: .035, gain: .45, out: airBus });
     nextTick = Math.max(nextTick, now) + 1;
   }
-  if (place !== 'city' || now < nextAir) return;
-  nextAir = now + between(2.5, 6) * (1 + tension);
-  const roll = Math.random();
-  // Сирена замість звичного руху, коли в країні біда.
-  if (roll < tension * .5) { for (let i = 0; i < 4; i++) tone(i % 2 ? 620 : 880, { to: i % 2 ? 880 : 620, dur: .7, gain: .018, attack: .1, at: i * .7, out: airBus, wet: .5 }); }
-  else if (roll < .8) noise({ freq: 380, to: between(700, 1100), dur: between(1.6, 2.8), gain: .05 * (1 - tension * .6), attack: .9, q: .8, out: airBus });
-  else for (const [at, f] of [[0, 392], [.22, 392]]) tone(f, { type: 'square', dur: .16, gain: .008, at, out: airBus, wet: .6 });
+  if (place !== 'city') return;
+  // Машини: що краще працює країна, то щільніший рух.
+  if (now >= nextCar) {
+    nextCar = now + between(.7, 2.4) / Math.max(.25, life);
+    const dur = between(1.4, 2.6);
+    noise({ freq: between(260, 420), to: between(700, 1300), q: .9, dur, gain: between(.35, .7) * Math.max(.4, life), attack: dur * .55, out: airBus });
+    if (chance(.3)) tone(between(70, 110), { type: 'sawtooth', to: 60, dur, gain: .02, attack: dur * .5, out: airBus });
+  }
+  if (now < nextAir) return;
+  nextAir = now + between(2.2, 5);
+  // Коли в країні біда, місто звучить сиренами й вітром замість буднів.
+  const scenes = chance(tension * .7) ? ['siren', 'wind', 'siren'] : mood === 'boom' ? ['horn', 'tram', 'factory', 'birds', 'train', 'crowd', 'crowd'] : ['horn', 'tram', 'factory', 'train', 'crowd', 'wind'];
+  street[scenes[Math.floor(Math.random() * scenes.length)]]();
 }
 
 function schedule() {
@@ -184,10 +202,11 @@ export const audio = {
   /** Перший дотик гравця вмикає звук: браузери не дають почати раніше. */
   wake() { void boot().resume(); },
   play(name: Sfx) { if (!ctx || ctx.state !== 'running' || volume.sfx === 0) return; effects[name](); },
-  /** Настрій музики, місце дії і напруга від 0 до 1. */
-  scene(next: Mood, where: Place, stress = 0) {
+  /** Настрій музики, місце дії, напруга від 0 до 1 і жвавість міста (1 — усе працює). */
+  scene(next: Mood, where: Place, stress = 0, bustle = 1) {
     if (next !== mood) { bar = 0; last = moods[next].scale[3]; }
-    mood = next; place = where; tension = Math.max(0, Math.min(1, stress));
+    if (where === 'city' && place !== 'city') nextCar = nextAir = 0;
+    mood = next; place = where; tension = Math.max(0, Math.min(1, stress)); life = Math.max(.15, Math.min(1.2, bustle));
   },
   volume: (kind: keyof Volume) => volume[kind],
   setVolume(kind: keyof Volume, value: number) {

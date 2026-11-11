@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Barlow:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700;800&display=swap');
 
 /* ── Основа ─────────────────────────────────────────────────────────────── */
 :root {
@@ -162,7 +161,7 @@ dialog button { min-height: 44px; padding: 10px 14px; margin: 0 8px 8px 0; borde
 
 /* ── Місто ──────────────────────────────────────────────────────────────── */
 .live-world { height: calc(100dvh - var(--head)); min-height: 560px; position: relative; overflow: hidden; background: #162e31; }
-.world-art { position: absolute; inset: 0; background: url('/assets/city.png') center / cover; animation: world-reveal 1.2s ease-out; }
+.world-art { position: absolute; inset: 0; background: url('/assets/city.webp') center / cover; animation: world-reveal 1.2s ease-out; }
 .city-vignette { position: absolute; inset: 0; background: linear-gradient(180deg, #091d2966, transparent 30%, #0a222422), linear-gradient(90deg, transparent 65%, #0d242799); }
 @keyframes world-reveal { from { transform: scale(1.06); filter: brightness(.4); } to { transform: scale(1); filter: brightness(1); } }
 .world-title { position: absolute; left: 24px; top: 20px; color: #fff0d1; text-shadow: 0 2px 8px #000a; }
@@ -235,7 +234,7 @@ dialog button { min-height: 44px; padding: 10px 14px; margin: 0 8px 8px 0; borde
 .why li { margin-bottom: 5px; }
 .why .tip { margin-top: 10px; padding: 10px 12px; background: #00000022; font-size: 14px; }
 .report-columns { display: grid; grid-template-columns: 1.3fr 1fr; gap: 26px; }
-.report-photo { height: 210px; background: url('/assets/city.png') center / cover; filter: sepia(.8) grayscale(.5); mix-blend-mode: multiply; }
+.report-photo { height: 210px; background: url('/assets/city-small.webp') center / cover; filter: sepia(.8) grayscale(.5); mix-blend-mode: multiply; }
 .caption { font: italic 12px Georgia, serif; margin-top: 6px; color: var(--ink-soft); }
 .report-lead { font: 16px/1.65 Georgia, serif; margin-top: 14px; }
 .report-facts { font: 13px/1.6 Georgia, serif; margin-top: 10px; color: var(--ink-soft); }
@@ -576,7 +575,7 @@ dialog.shock p { font: 16px/1.6 Georgia, serif; margin: 12px 0; }
 @keyframes paper-fade { from { opacity: 0; } }
 
 /* ── Головне меню ── */
-#menu { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; overflow: auto; background: linear-gradient(#1b0f08d9, #1b0f08f2), url('/assets/city.png') center / cover; }
+#menu { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; overflow: auto; background: linear-gradient(#1b0f08d9, #1b0f08f2), url('/assets/city-small.webp') center / cover; }
 #menu[hidden] { display: none; }
 .menu-card { width: min(420px, 100%); display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 26px 28px; text-align: center; animation: paper-in .4s ease-out; }
 .menu-card img { width: 84px; height: 84px; margin: 0 auto; mix-blend-mode: multiply; }

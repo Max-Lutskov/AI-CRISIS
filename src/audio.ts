@@ -1,4 +1,5 @@
-// Звук гри. Усе синтезується в браузері через Web Audio: жодних файлів і ліцензій.
+// Звук гри. Музика й ефекти синтезуються в браузері через Web Audio.
+// Місто — справжні записи (CC0, OpenGameArt): вулиця, птахи й натовп у public/assets/audio.
 // Музика генеративна: акорди й рідкі ноти складаються на ходу й залежать від фази та напруги.
 
 export type Sfx = 'click' | 'up' | 'down' | 'card' | 'paper' | 'stamp' | 'wire' | 'alarm' | 'press' | 'shock' | 'victory' | 'defeat';
@@ -14,8 +15,9 @@ let ctx: AudioContext | null = null;
 let musicBus: GainNode, sfxBus: GainNode, airBus: GainNode, hall: GainNode, echo: GainNode;
 let hiss: AudioBuffer;
 let mood: Mood = 'menu', place: Place = 'none', tension = 0, life = 1;
-let nextBar = 0, bar = 0, nextAir = 0, nextCar = 0, nextTick = 0, last = 69;
-let hum: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
+let nextBar = 0, bar = 0, nextAir = 0, nextTick = 0, last = 69;
+type Loop = 'street' | 'birds' | 'crowd';
+const loops: Partial<Record<Loop, GainNode>> = {};
 
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
 const chance = (p: number) => Math.random() < p;
@@ -53,6 +55,7 @@ function boot(): AudioContext {
   const damp = ctx.createBiquadFilter(); damp.type = 'lowpass'; damp.frequency.value = 1800;
   echo = ctx.createGain(); echo.connect(delay); delay.connect(damp); damp.connect(feedback); feedback.connect(delay); damp.connect(musicBus); damp.connect(hall);
 
+  for (const name of ['street', 'birds', 'crowd'] as Loop[]) void loadLoop(name);
   setInterval(schedule, 200);
   document.addEventListener('visibilitychange', () => { if (document.hidden) void ctx!.suspend(); else void ctx!.resume(); });
   return ctx;
@@ -143,48 +146,51 @@ function playBar(at: number) {
 }
 
 // ── Атмосфера місця ─────────────────────────────────────────────────────────
-function setHum(level: number, cutoff: number) {
-  const c = ctx!;
-  if (!hum) {
-    const source = c.createBufferSource(); source.buffer = hiss; source.loop = true;
-    const low = c.createBiquadFilter(); low.type = 'lowpass'; low.frequency.value = cutoff;
-    const gain = c.createGain(); gain.gain.value = 0;
-    source.connect(low); low.connect(gain); gain.connect(airBus); source.start();
-    hum = { source, gain };
+/** Склеює кінець запису з початком, щоб петля не клацала на стику. */
+function seamless(buffer: AudioBuffer, fade = 1.5): AudioBuffer {
+  const overlap = Math.floor(fade * buffer.sampleRate), length = buffer.length - overlap;
+  const out = ctx!.createBuffer(buffer.numberOfChannels, length, buffer.sampleRate);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const from = buffer.getChannelData(c), to = out.getChannelData(c);
+    to.set(from.subarray(0, length));
+    for (let i = 0; i < overlap; i++) { const k = i / overlap; to[i] = from[i] * k + from[length + i] * (1 - k); }
   }
-  hum.gain.gain.setTargetAtTime(level, c.currentTime, .6);
+  return out;
 }
-// Що чути в місті, крім машин. Кожен звук — окрема коротка сценка.
+async function loadLoop(name: Loop) {
+  try {
+    const data = await (await fetch(`assets/audio/${name}.mp3`)).arrayBuffer();
+    const source = ctx!.createBufferSource(); source.buffer = seamless(await ctx!.decodeAudioData(data)); source.loop = true;
+    const gain = ctx!.createGain(); gain.gain.value = 0;
+    source.connect(gain); gain.connect(airBus); source.start(0, Math.random() * source.buffer.duration);
+    loops[name] = gain;
+  } catch { /* запис не завантажився — місто лишиться без цього шару */ }
+}
+// Що чути в місті поверх записів. Кожен звук — окрема коротка сценка.
 const street: Record<string, () => void> = {
-  horn: () => { for (const at of [0, .24]) for (const f of [392, 494]) tone(f, { type: 'square', dur: .18, gain: .022, at, out: airBus, wet: .5 }); },
   tram: () => { for (const at of [0, .32]) { tone(1560, { dur: .7, gain: .05, at, out: airBus, wet: .6 }); tone(2093, { dur: .5, gain: .025, at, out: airBus, wet: .6 }); } },
   factory: () => { for (let i = 0; i < 4; i++) { noise({ freq: 1700, q: 9, dur: .09, gain: .8, at: i * .46, out: airBus }); tone(196, { type: 'triangle', to: 150, dur: .12, gain: .07, at: i * .46, out: airBus, wet: .5 }); } },
-  birds: () => { for (let i = 0, at = 0; i < 5; i++, at += between(.09, .3)) tone(between(2500, 3100), { to: between(3300, 4200), dur: .09, gain: .035, at, out: airBus, wet: .4 }); },
   train: () => { for (const f of [277, 349]) tone(f, { type: 'sawtooth', dur: 1.5, gain: .02, attack: .2, out: airBus, wet: .8 }); },
-  crowd: () => { for (let i = 0; i < 3; i++) noise({ freq: between(500, 1100), q: 2, dur: between(1.2, 2.2), gain: .3, attack: .6, at: i * .5, out: airBus }); },
   siren: () => { for (let i = 0; i < 6; i++) tone(i % 2 ? 620 : 880, { to: i % 2 ? 880 : 620, dur: .7, gain: .05, attack: .1, at: i * .7, out: airBus, wet: .5 }); },
-  wind: () => noise({ freq: 300, to: 700, q: 3, dur: 3.5, gain: .5, attack: 1.6, out: airBus }),
 };
 function air(now: number) {
-  // Шум після фільтра втрачає майже всю гучність, тому рівні тут великі.
-  setHum(place === 'city' ? .5 + life * .5 : place === 'office' ? .28 : 0, place === 'city' ? 420 : 260);
+  const city = place === 'city', busy = Math.min(1, life);
+  // Вулиця тихішає, коли країна зупиняється; у кабінеті її ледь чути крізь вікно.
+  const levels: Record<Loop, number> = {
+    street: city ? .35 + busy * .75 : place === 'office' ? .1 : 0,
+    birds: city ? (mood === 'boom' ? .7 : .35 * (1 - tension)) : 0,
+    // Протест під вікнами наростає разом із напругою.
+    crowd: city && mood === 'deficit' ? Math.max(0, tension - .2) * .9 : 0,
+  };
+  for (const name of Object.keys(levels) as Loop[]) loops[name]?.gain.setTargetAtTime(levels[name], now, .8);
   if (place === 'office' && now >= nextTick) {
     // Настінний годинник у кабінеті.
     noise({ freq: nextTick % 2 < 1 ? 3400 : 2700, q: 5, dur: .035, gain: .45, out: airBus });
     nextTick = Math.max(nextTick, now) + 1;
   }
-  if (place !== 'city') return;
-  // Машини: що краще працює країна, то щільніший рух.
-  if (now >= nextCar) {
-    nextCar = now + between(.7, 2.4) / Math.max(.25, life);
-    const dur = between(1.4, 2.6);
-    noise({ freq: between(260, 420), to: between(700, 1300), q: .9, dur, gain: between(.35, .7) * Math.max(.4, life), attack: dur * .55, out: airBus });
-    if (chance(.3)) tone(between(70, 110), { type: 'sawtooth', to: 60, dur, gain: .02, attack: dur * .5, out: airBus });
-  }
-  if (now < nextAir) return;
-  nextAir = now + between(2.2, 5);
-  // Коли в країні біда, місто звучить сиренами й вітром замість буднів.
-  const scenes = chance(tension * .7) ? ['siren', 'wind', 'siren'] : mood === 'boom' ? ['horn', 'tram', 'factory', 'birds', 'train', 'crowd', 'crowd'] : ['horn', 'tram', 'factory', 'train', 'crowd', 'wind'];
+  if (!city || now < nextAir) return;
+  nextAir = now + between(4, 9) / Math.max(.4, life);
+  const scenes = chance(tension * .7) ? ['siren'] : ['tram', 'factory', 'train'];
   street[scenes[Math.floor(Math.random() * scenes.length)]]();
 }
 
@@ -195,7 +201,7 @@ function schedule() {
     if (nextBar < now) nextBar = now + .08;
     while (nextBar < now + .7) { playBar(nextBar); nextBar += 240 / moods[mood].bpm; }
     air(now);
-  } else if (hum) hum.gain.gain.setTargetAtTime(0, now, .2);
+  }
 }
 
 export const audio = {
@@ -205,7 +211,7 @@ export const audio = {
   /** Настрій музики, місце дії, напруга від 0 до 1 і жвавість міста (1 — усе працює). */
   scene(next: Mood, where: Place, stress = 0, bustle = 1) {
     if (next !== mood) { bar = 0; last = moods[next].scale[3]; }
-    if (where === 'city' && place !== 'city') nextCar = nextAir = 0;
+    if (where === 'city' && place !== 'city') nextAir = 0;
     mood = next; place = where; tension = Math.max(0, Math.min(1, stress)); life = Math.max(.15, Math.min(1.2, bustle));
   },
   volume: (kind: keyof Volume) => volume[kind],

@@ -592,6 +592,9 @@ function openMenu(armed: 'new' | 'same' | null = null) {
 function closeMenu() {
   menuOpen = false; menu.hidden = true; audio.play('click'); tune();
 }
+// Поки гравець у меню, підвантажуємо картинки кабінету й міста, щоб екрани не з’являлися порожніми.
+for (const path of [...sectorArt.map(name => `ui/sector-${name}`), ...['automate', 'regulate', 'train', 'center', 'contract', 'manual'].map(id => `ui/policy-${policyData[id as Policy].art}`), ...slides.map(slide => `ui/${slide.art}`), 'ui/seal', 'ui/paperclip', 'city'])
+  new Image().src = `assets/${path}.webp`;
 // Браузер дозволяє звук лише після першого дотику гравця.
 for (const type of ['pointerdown', 'keydown'] as const) document.addEventListener(type, () => audio.wake(), { capture: true });
 document.addEventListener('keydown', e => {

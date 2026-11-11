@@ -1,4 +1,5 @@
 import './style.css';
+import { audio } from './audio';
 import {
   initialState, resolveRound, forecastFor, policyCost, corporateFee, canChoose, availableCompute, landingChecks, surgeOf, need, totalNeed, plural,
   phaseOf, yearOf, policiesFor, needsTarget, chronicle, averageReserve, averageAutomation, weakestReserve, centerUpkeep, prepTrust,
@@ -26,10 +27,11 @@ let result: Result | null = null;
 let elapsed = 0;
 let paused = false;
 let speed = 1;
-let muted = true;
+let menuOpen = false;
+/** Чи гравець уже почав партію в цьому сеансі. */
+let begun = false;
 let selectedDistrict = 2;
 let lastEvent = -1;
-let audio: AudioContext | null = null;
 let animation = 0;
 
 const positions = [[49, 27], [27, 25], [72, 28], [21, 48], [79, 49], [31, 69], [63, 65]];
@@ -61,14 +63,11 @@ const comma = (n: number) => n.toFixed(1).replace('.', ',');
 const pct = (n: number) => Math.round(n) + '%';
 const sentence = (text: string) => /[.?!]$/.test(text) ? text : text + '.';
 
-function sound(frequency = 180) {
-  if (muted) return;
-  audio ??= new AudioContext();
-  void audio.resume();
-  const oscillator = audio.createOscillator(); const gain = audio.createGain();
-  oscillator.connect(gain); gain.connect(audio.destination); oscillator.frequency.value = frequency;
-  gain.gain.setValueAtTime(.035, audio.currentTime); gain.gain.exponentialRampToValueAtTime(.001, audio.currentTime + .2);
-  oscillator.start(); oscillator.stop(audio.currentTime + .2);
+/** Музика й атмосфера під поточний екран. Напруга росте, коли падає довіра й зупиняються галузі. */
+function tune() {
+  const now = screen === 'city' && result ? result.state : state;
+  const stress = phaseOf(now) === 'boom' ? 0 : (WIN.trust + 15 - now.trust) / 40 + now.sectors.filter(s => s.service < WIN.service).length * .15;
+  audio.scene(menuOpen || screen === 'intro' ? 'menu' : phaseOf(now), menuOpen ? 'none' : screen === 'city' ? 'city' : screen === 'cabinet' ? 'office' : 'none', stress);
 }
 
 function header() {
@@ -87,16 +86,13 @@ function header() {
     <div class="header-actions">
       <span class="phase ${phaseOf(state)}">Фаза: ${boom() ? 'БУМ' : 'ДЕФІЦИТ'}</span>
       ${screen === 'cabinet' ? '<button class="brief-toggle" id="brief-toggle">Газета</button>' : ''}
-      <button class="sound icon-button" aria-label="${muted ? 'Увімкнути' : 'Вимкнути'} звук">${muted ? '♪̸' : '♪'}</button>
+      <button class="menu-button icon-button" aria-label="Меню">☰</button>
     </div>
   </header>`;
 }
 function bindHeader() {
-  $('.brand').addEventListener('click', e => e.preventDefault());
-  $('.sound').addEventListener('click', () => {
-    muted = !muted; sound(330);
-    const button = $('.sound'); button.textContent = muted ? '♪̸' : '♪'; button.setAttribute('aria-label', muted ? 'Увімкнути звук' : 'Вимкнути звук');
-  });
+  $('.brand').addEventListener('click', e => { e.preventDefault(); openMenu(); });
+  $('.menu-button').addEventListener('click', () => openMenu());
 }
 function checklist() {
   return `<ul class="checks">${landingChecks(state).map(c => `<li class="${c.ok ? 'ok' : 'miss'}"><span>${c.ok ? '✓' : '✗'} ${c.label}</span><b>${c.value}</b></li>`).join('')}</ul>`;
@@ -121,7 +117,7 @@ const slides = [
   { year: `Мета · ${LAST_YEAR}`, title: 'Довести країну до кінця', art: 'policy-center', text: `Ніхто не знає, скільки триватиме дешевий ШІ. До ${LAST_YEAR} року треба зберегти три речі: <b>люди довіряють уряду</b> (від ${WIN.trust}%), <b>кожна галузь працює</b> (від ${WIN.service}%), <b>у кожній галузі вміють без ШІ</b> (навички від ${WIN.reserve}%). У ${ELECTION_YEAR}-му вибори: з довірою нижче ${ELECTION}% вас не переоберуть.` },
 ];
 function intro(index = 0) {
-  screen = 'intro';
+  screen = 'intro'; tune();
   const slide = slides[index]; const last = index === slides.length - 1;
   app.innerHTML = `<main class="intro"><article class="intro-card paper">
     <div class="intro-art" style="background-image:url(assets/ui/${slide.art}.webp)"></div>
@@ -136,13 +132,13 @@ function intro(index = 0) {
       </div>
     </div>
   </article></main>`;
-  $('#intro-next').onclick = () => { sound(240); if (last) cabinet(); else intro(index + 1); };
+  $('#intro-next').onclick = () => { audio.play('paper'); if (last) cabinet(); else intro(index + 1); };
   document.querySelector<HTMLElement>('#intro-skip')?.addEventListener('click', cabinet);
 }
 
 // ── Кабінет ─────────────────────────────────────────────────────────────────
 function cabinet() {
-  screen = 'cabinet'; step = 0;
+  screen = 'cabinet'; step = 0; tune();
   fitAllocations();
   const crisis = state.crisis; const isBoom = boom(); const year = yearOf(state.round);
   const story = chronicle[state.round];
@@ -230,19 +226,19 @@ function cabinet() {
   bindHeader(); updateCabinet();
 
   const briefing = $('#briefing');
-  const toggleBrief = (open: boolean) => briefing.classList.toggle('open', open);
+  const toggleBrief = (open: boolean) => { if (open !== briefing.classList.contains('open')) audio.play('paper'); briefing.classList.toggle('open', open); };
   $('#brief-toggle').onclick = () => toggleBrief(!briefing.classList.contains('open'));
   document.querySelectorAll<HTMLElement>('[data-open-brief]').forEach(b => b.onclick = () => toggleBrief(true));
   document.querySelectorAll<HTMLElement>('[data-close-brief]').forEach(b => b.onclick = () => toggleBrief(false));
-  const goTo = (next: number) => { step = next; toggleBrief(false); updateCabinet(); sound(240); window.scrollTo(0, 0); };
+  const goTo = (next: number) => { step = next; toggleBrief(false); updateCabinet(); audio.play('click'); window.scrollTo(0, 0); };
   document.querySelectorAll<HTMLButtonElement>('[data-step-to]').forEach(button => button.onclick = () => goTo(Number(button.dataset.stepTo)));
   document.querySelectorAll<HTMLButtonElement>('[data-adjust]').forEach(button => button.onclick = () => {
     const [i, change] = button.dataset.adjust!.split(',').map(Number);
     const free = availableCompute(state, policy) - total();
-    if ((change > 0 && free > 0 && allocations[i] < MAX_PER_SECTOR) || (change < 0 && allocations[i] > 0)) { allocations[i] += change; updateCabinet(); sound(220); }
+    if ((change > 0 && free > 0 && allocations[i] < MAX_PER_SECTOR) || (change < 0 && allocations[i] > 0)) { allocations[i] += change; updateCabinet(); audio.play(change > 0 ? 'up' : 'down'); }
   });
   document.querySelectorAll<HTMLButtonElement>('[data-policy]').forEach(button => button.onclick = () => {
-    policy = button.dataset.policy as Policy; fitAllocations(); updateCabinet(); sound(260);
+    policy = button.dataset.policy as Policy; fitAllocations(); updateCabinet(); audio.play('card');
   });
   $<HTMLSelectElement>('#target').onchange = e => { target = Number((e.target as HTMLSelectElement).value); updateCabinet(); };
   const sign = () => {
@@ -250,7 +246,7 @@ function cabinet() {
     if (!outcome) return;
     result = outcome;
     document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button, select').forEach(control => control.disabled = true);
-    $('#stamp').classList.add('stamped'); sound(90);
+    $('#stamp').classList.add('stamped'); audio.play('stamp');
     setTimeout(city, 650);
   };
   $<HTMLButtonElement>('#sign').onclick = sign;
@@ -268,7 +264,7 @@ function cabinet() {
   $('#how-to').onclick = () => intro();
   const shock = $<HTMLDialogElement>('#shock-dialog');
   $('#shock-ok').onclick = () => shock.close();
-  if (state.round === SHOCK_ROUND) shock.showModal();
+  if (state.round === SHOCK_ROUND) { shock.showModal(); audio.play('shock'); }
 }
 
 /** Оновлює все, що залежить від розподілу, указу й кроку, не перемальовуючи екран. */
@@ -347,7 +343,7 @@ function updateCabinet() {
 
 // ── Місто ───────────────────────────────────────────────────────────────────
 function city() {
-  screen = 'city'; elapsed = 0; paused = false; lastEvent = -1; selectedDistrict = 2;
+  screen = 'city'; elapsed = 0; paused = false; lastEvent = -1; selectedDistrict = 2; tune();
   app.innerHTML = `${header()}<main class="live-world">
     <div class="world-art"></div><div class="city-vignette"></div>
     <div class="world-title"><span class="eyebrow">Указ підписано</span><h1>${yearOf(state.round)} рік триває.</h1><p>${policyTitle()}</p></div>
@@ -375,7 +371,7 @@ function city() {
   let previous = performance.now();
   function frame(now: number) {
     if (screen !== 'city') return;
-    if (!paused) elapsed += Math.min(now - previous, 100) * speed;
+    if (!paused && !menuOpen) elapsed += Math.min(now - previous, 100) * speed;
     previous = now;
     const progress = Math.min(elapsed / PERIOD, 1); drawProgress(progress);
     if (progress === 1) { finishRound(); return; }
@@ -404,7 +400,7 @@ function drawProgress(progress: number) {
   const index = result!.events.findLastIndex(e => e.at <= progress);
   if (index > lastEvent) {
     lastEvent = index; const event = result!.events[index]; selectedDistrict = event.sector; showDistrict();
-    $('#event-feed').innerHTML = `<span class="eyebrow">${names[event.sector]} · щойно</span><h3>${event.title}</h3><p>${event.body}</p>`; sound(410);
+    $('#event-feed').innerHTML = `<span class="eyebrow">${names[event.sector]} · щойно</span><h3>${event.title}</h3><p>${event.body}</p>`; audio.play(result!.state.sectors[event.sector].service < FAILURE_LEVEL ? 'alarm' : 'wire');
   }
   $('#trust').textContent = Math.round(state.trust + (after.trust - state.trust) * progress) + '%';
   $('#budget').textContent = String(Math.round(state.budget + (after.budget - state.budget) * progress));
@@ -504,7 +500,7 @@ function finishRound() {
   if (screen !== 'city') return;
   cancelAnimationFrame(animation); screen = 'paper';
   const played = policyTitle(); const outcome = result!; const before = state;
-  state = outcome.state;
+  state = outcome.state; tune();
   const why = outcome.ending ? explain(outcome, before) : null;
   const worst = state.sectors.reduce((a, b) => a.service < b.service ? a : b);
   const label = outcome.ending === 'Країна за підпискою' ? 'НЕЗАЛЕЖНІСТЬ ВТРАЧЕНО' : outcome.outcome === 'defeat' ? 'ПОРАЗКА' : outcome.outcome === 'victory' ? 'ПЕРЕМОГА' : 'НЕПОВНА ПЕРЕМОГА';
@@ -533,7 +529,8 @@ function finishRound() {
       <div class="report-actions">${outcome.ending ? '<button class="text-button" id="replay">Переграти цей сід</button>' : ''}<button class="sign-button" id="continue">${outcome.ending ? 'Нова партія ↺' : `До ${yearOf(state.round)} року ↗`}</button></div>
     </footer>
   </article></main>`;
-  bindHeader(); sound(150);
+  bindHeader(); audio.play('press');
+  if (outcome.ending) setTimeout(() => audio.play(outcome.outcome === 'defeat' ? 'defeat' : 'victory'), 500);
   document.querySelector<HTMLButtonElement>('#replay')?.addEventListener('click', () => restart(seed));
   $('#continue').onclick = () => {
     if (outcome.ending) { restart(newSeed()); return; }
@@ -550,6 +547,55 @@ function restart(nextSeed: number) {
   cabinet();
 }
 
+// ── Головне меню ────────────────────────────────────────────────────────────
+// Живе поза #app, тому переживає перемальовування екранів і відкривається поверх будь-якого.
 let seen = false;
 try { seen = localStorage.getItem('ai-crisis-intro') === '1'; localStorage.setItem('ai-crisis-intro', '1'); } catch { /* сховище недоступне — просто показуємо вступ */ }
-if (seen) cabinet(); else intro();
+const menu = document.createElement('div');
+menu.id = 'menu'; menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', 'Головне меню');
+document.body.append(menu);
+/** armed — який перезапуск чекає на підтвердження другим натисканням. */
+function openMenu(armed: 'new' | 'same' | null = null) {
+  if (!menuOpen) audio.play('paper');
+  menuOpen = true; menu.hidden = false; tune();
+  const over = !!result?.ending && screen === 'paper';
+  const status = !begun ? 'Країна підсіла на дешевий ШІ. Дешевий ШІ не вічний.'
+    : over ? `Партію завершено: ${result!.ending!.toLowerCase()}. Сід ${seed}.`
+    : `${yearOf(Math.min(state.round, LAST_ROUND))} рік · довіра ${state.trust}% · бюджет ${state.budget} · сід ${seed}`;
+  const restartButton = (kind: 'new' | 'same', label: string) => `<button data-restart="${kind}" class="${armed === kind ? 'armed' : ''}">${armed === kind ? 'Точно? Поточну партію буде втрачено' : label}</button>`;
+  menu.innerHTML = `<div class="menu-card paper">
+    <img src="assets/ui/emblem.webp" alt="">
+    <h1>AI CRISIS</h1><p class="menu-tagline">Кабінет останньої надії</p>
+    <p class="menu-status">${status}</p>
+    <button class="sign-button" id="menu-go">${begun ? 'Продовжити' : 'Почати гру'}</button>
+    ${begun ? restartButton('new', 'Нова партія') + restartButton('same', 'Почати цей сід заново') : ''}
+    <button id="menu-how">Як грати</button>
+    <div class="menu-volume">
+      <label>Музика <input type="range" min="0" max="100" value="${Math.round(audio.volume('music') * 100)}" data-volume="music"></label>
+      <label>Звуки <input type="range" min="0" max="100" value="${Math.round(audio.volume('sfx') * 100)}" data-volume="sfx"></label>
+    </div>
+  </div>`;
+  $('#menu-go').onclick = () => { closeMenu(); if (!begun) { begun = true; if (seen) cabinet(); else intro(); } };
+  $('#menu-how').onclick = () => { begun = true; closeMenu(); intro(); };
+  menu.querySelectorAll<HTMLButtonElement>('[data-restart]').forEach(button => button.onclick = () => {
+    const kind = button.dataset.restart as 'new' | 'same';
+    if (!over && armed !== kind) { openMenu(kind); return; }
+    closeMenu(); restart(kind === 'new' ? newSeed() : seed);
+  });
+  menu.querySelectorAll<HTMLInputElement>('[data-volume]').forEach(slider => slider.oninput = () => {
+    const kind = slider.dataset.volume as 'music' | 'sfx';
+    audio.setVolume(kind, Number(slider.value) / 100);
+    if (kind === 'sfx') audio.play('up');
+  });
+  menu.querySelector<HTMLElement>(armed ? '.armed' : '#menu-go')?.focus();
+}
+function closeMenu() {
+  menuOpen = false; menu.hidden = true; audio.play('click'); tune();
+}
+// Браузер дозволяє звук лише після першого дотику гравця.
+for (const type of ['pointerdown', 'keydown'] as const) document.addEventListener(type, () => audio.wake(), { capture: true });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+  if (!menuOpen) openMenu(); else if (begun) closeMenu();
+});
+openMenu();

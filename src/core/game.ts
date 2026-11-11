@@ -71,7 +71,8 @@ export const QUOTA_DIP = 4;
 export const WINDFALL = 4;
 export const WIN = { trust: 45, service: 75, reserve: 18 };
 export const VICTORY = 'Криза позаду';
-export const SURVIVED = 'Вижили з втратами';
+export const SURVIVED = 'Вижили з втратами';   // виконано дві умови з трьох
+export const BROKEN = 'Країна не витримала';   // виконано одну або жодної
 
 export const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 export const plural = (n: number, forms: [string, string, string]) => {
@@ -264,7 +265,7 @@ export function resolveRound(before: State, allocations: number[], policy: Polic
   else if (state.trust <= TRUST_FLOOR) ending = 'Вотум недовіри';
   else if (state.collapsed >= 2) ending = 'Уряд втратив контроль';
   else if (state.deals >= 3) ending = 'Країна за підпискою';
-  else if (state.round > LAST_ROUND) ending = landingChecks(state).every(c => c.ok) ? VICTORY : SURVIVED;
+  else if (state.round > LAST_ROUND) { const met = landingChecks(state).filter(c => c.ok).length; ending = met === 3 ? VICTORY : met === 2 ? SURVIVED : BROKEN; }
   const outcome: Outcome = ending === null ? 'ongoing' : ending === VICTORY ? 'victory' : ending === SURVIVED ? 'compromise' : 'defeat';
 
   const news = herald(before, state, policy, target);
@@ -276,6 +277,7 @@ export function resolveRound(before: State, allocations: number[], policy: Polic
     : ending === 'Вотум недовіри' ? `Довіра впала до ${state.trust}%. Парламент відправив уряд у відставку.`
     : ending === 'Уряд втратив контроль' ? 'Дві галузі два роки поспіль не працюють. Країною вже ніхто не керує.'
     : ending === 'Держава не може оплатити рахунки' ? 'Скарбниця порожня. Постачальники вимикають доступ за борги.'
+    : ending === BROKEN ? 'Уряд досидів до кінця строку, але країни, якою він мав керувати, майже не лишилося.'
     : ending ? 'Сценарій завершено.'
     : state.project ? `До запуску дата-центру — ${stages(state.project)}.` : 'Уряд готує наступне рішення.';
   const description = `Доставлена продукція принесла ${money(income)} надходжень. ${price ? `Указ коштував ${money(price)}` : 'Указ безкоштовний'}${policy === 'automate' ? ` і заощадив ${money(AUTOMATE_BUDGET)}` : ''}${fees ? `, платежі за угоди — ${money(fees)}` : ''}${upkeep ? `, утримання дата-центрів — ${money(upkeep)}` : ''}. Бюджет ${change ? (change > 0 ? '+' : '−') + money(Math.abs(change)) : 'без змін'}, довіра ${trustDelta ? (trustDelta > 0 ? '+' : '−') + Math.abs(trustDelta) : 'без змін'}. ${tail}`;

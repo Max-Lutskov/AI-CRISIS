@@ -3,7 +3,7 @@ import {
   initialState, resolveRound, services, forecastServices, forecastFor, policyCost, availableCompute, canChoose, crisisFor, landingChecks, plural, surgeOf, phaseOf, yearOf,
   proportional, averageReserve, averageAutomation, policiesFor, chronicle,
   AUTOMATE_BUDGET, AUTOMATE_GAIN, CENTER_COMPUTE, DEAL_COMPUTE, DEAL_FEE, DEAL_RESERVE, DRIFT, ELECTION, IMPORT_CUT, LAST_ROUND, MANUAL_TRUST, SHOCK_IMPORT, SHOCK_ROUND, SURGE,
-  TRUST_FLOOR, VICTORY, SURVIVED, WIN, PREP_TRUST, prepTrust, CENTER_STEP, CENTER_UPKEEP, centerUpkeep, costs, type State,
+  TRUST_FLOOR, VICTORY, SURVIVED, BROKEN, WIN, PREP_TRUST, prepTrust, CENTER_STEP, CENTER_UPKEEP, centerUpkeep, costs, type State,
 } from './game';
 
 const kept = (state: State) => state.sectors.map(s => s.allocation);
@@ -265,5 +265,16 @@ describe('роки дефіциту', () => {
     expect(landingChecks(state)[2].ok).toBe(false);
     state.sectors[2].reserve = WIN.reserve;
     expect(landingChecks(state)[2].ok).toBe(true);
+  });
+
+  it('оцінює фінал за кількістю виконаних умов', () => {
+    const last = (trust: number, reserve: number) => {
+      const state = crisis(); state.round = LAST_ROUND; state.trust = trust; state.budget = 200; state.capacity = 80;
+      state.sectors.forEach(s => s.reserve = reserve);
+      return resolveRound(state, proportional(state), 'train', 0);
+    };
+    expect(last(70, 80).ending).toBe(VICTORY);
+    expect(last(30, 80)).toMatchObject({ ending: SURVIVED, outcome: 'compromise' });
+    expect(last(30, 5)).toMatchObject({ ending: BROKEN, outcome: 'defeat' });
   });
 });

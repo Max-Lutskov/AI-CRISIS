@@ -4,7 +4,7 @@ import {
   initialState, resolveRound, forecastFor, policyCost, corporateFee, canChoose, availableCompute, landingChecks, surgeOf, need, totalNeed, plural,
   phaseOf, yearOf, policiesFor, money, needsTarget, chronicle, averageReserve, averageAutomation, weakestReserve, centerUpkeep, prepTrust,
   symbols, names, AUTOMATE_BUDGET, AUTOMATE_GAIN, AUTOMATE_TRUST, BUILD_THRESHOLD, CENTER_COMPUTE, CENTER_STAGES, CENTER_STEP, CENTER_UPKEEP, COLLAPSE_LEVEL, DEAL_COMPUTE, DEAL_FEE, DEAL_RESERVE, DEAL_TRUST,
-  ELECTION, FAILURE_LEVEL, LAST_ROUND, MANUAL_TRUST, MAX_PER_SECTOR, PREP_TRUST, REGULATE_TRUST, SHOCK_ROUND, START_YEAR, SURVIVED, TRUST_FLOOR, TRUST_WEIGHTS, VICTORY, WIN,
+  ELECTION, FAILURE_LEVEL, LAST_ROUND, MANUAL_TRUST, MAX_PER_SECTOR, PREP_TRUST, REGULATE_TRUST, SHOCK_ROUND, START_YEAR, SURVIVED, BROKEN, TRUST_FLOOR, TRUST_WEIGHTS, VICTORY, WIN,
   type Policy, type Result, type State,
 } from './core/game';
 
@@ -416,7 +416,8 @@ function showDistrict() {
 // ── Газета ──────────────────────────────────────────────────────────────────
 const verdicts: Record<string, string> = {
   [VICTORY]: 'Країна пережила кінець дешевого ШІ й залишилася собою: послуги працюють, люди довіряють уряду й досі вміють працювати самі.',
-  [SURVIVED]: `Країна дожила до ${LAST_YEAR} року, але не все вдалося зберегти: виконано не всі три умови.`,
+  [SURVIVED]: `Країна дожила до ${LAST_YEAR} року, але не все вдалося зберегти: одну з трьох умов не виконано.`,
+  [BROKEN]: `Календар дійшов до ${LAST_YEAR} року, але це не порятунок: із трьох умов виконано щонайбільше одну. Кризу країна не пережила — вона в ній застрягла.`,
   'Країна за підпискою': 'Дефіцит закінчився, але розподіляти обчислення тепер будете не ви. Третя угода передала це право консорціуму.',
   'Програні вибори': 'Поки ШІ був дешевим, люди хотіли швидких послуг, а не обережності. На виборах вони обрали тих, хто це пообіцяв.',
   'Вотум недовіри': 'Люди перестали вірити уряду, і парламент відправив його у відставку, не чекаючи кінця кризи.',
@@ -479,7 +480,7 @@ function explain(outcome: Result, before: State): { points: string[]; tip: strin
       ],
       tip: 'Галузь без обчислень тримається лише на навичках людей. Не лишайте дві галузі з нулем одночасно: краще всім потроху, ніж комусь нічого.',
     };
-    case SURVIVED: {
+    case SURVIVED: case BROKEN: {
       const points: string[] = []; const low = s.filter(v => v.service < WIN.service);
       if (after.trust < WIN.trust) points.push(`Довіра ${after.trust}% — потрібно від ${WIN.trust}%. Її з’їдають слабкі лікарні, держпослуги й освіта, а також ручний режим і угоди.`);
       if (low.length) points.push(`Нижче ${WIN.service}% в останньому році: ${listed(low)}. Ця умова рахується саме за ${LAST_YEAR} роком.`);
@@ -512,7 +513,7 @@ function finishRound() {
     <div class="report-top"><span>НЕЗАЛЕЖНЕ ВИДАННЯ</span><span>ПІДСУМКИ ${yearOf(before.round)} РОКУ</span><span>СІД ${seed}</span></div>
     <h1 class="report-name">Урядовий вісник · ${yearOf(before.round)}</h1><div class="report-subtitle">КРАЇНА ПІСЛЯ ВАШОГО РІШЕННЯ</div>
     <h2>${outcome.ending ?? outcome.headline}</h2>
-    ${outcome.ending ? `<div class="outcome-banner ${outcome.outcome}"><strong>${label}</strong><p>${verdicts[outcome.ending]}</p>${outcome.outcome === 'defeat' ? '' : checklist()}<div class="why"><span class="eyebrow">${outcome.outcome === 'victory' ? 'З чим ви дійшли' : 'Чому так сталося'}</span><ol>${why!.points.map(point => `<li>${point}</li>`).join('')}</ol><p class="tip"><b>Наступного разу.</b> ${why!.tip}</p></div></div>` : ''}
+    ${outcome.ending ? `<div class="outcome-banner ${outcome.outcome}"><strong>${label}</strong><p>${verdicts[outcome.ending]}</p>${outcome.outcome === 'defeat' && outcome.ending !== BROKEN ? '' : checklist()}<div class="why"><span class="eyebrow">${outcome.outcome === 'victory' ? 'З чим ви дійшли' : 'Чому так сталося'}</span><ol>${why!.points.map(point => `<li>${point}</li>`).join('')}</ol><p class="tip"><b>Наступного разу.</b> ${why!.tip}</p></div></div>` : ''}
     <div class="report-columns">
       <div><div class="report-photo"></div><p class="caption">Життя країни після указу «${played}».</p><p class="report-lead">${outcome.ending || outcome.lead.title !== outcome.headline ? `<b>${sentence(outcome.lead.title)}</b> ` : ''}${outcome.lead.body}</p><p class="report-facts">${outcome.description}</p></div>
       <div class="report-analysis"><h3>Ціна рішення</h3>

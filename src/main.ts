@@ -1,5 +1,6 @@
 import './style.css';
 import './tabletop.css';
+import './sector-art.css';
 import {
   initialState, resolveRound, forecastServices, policyCost, corporateFee, canChoose, availableCompute, landingChecks, surgeOf, need, plural,
   symbols, names, BUILD_THRESHOLD, CENTER_COMPUTE, CENTER_STAGES, DEAL_COMPUTE, DEAL_FEE, DEAL_RESERVE, DEAL_TRUST, LAST_ROUND, MANUAL_TRUST,

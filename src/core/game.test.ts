@@ -3,7 +3,7 @@ import {
   initialState, resolveRound, services, forecastServices, forecastFor, policyCost, availableCompute, canChoose, crisisFor, landingChecks, plural, surgeOf, phaseOf, yearOf,
   proportional, averageReserve, averageAutomation, policiesFor, chronicle,
   AUTOMATE_BUDGET, AUTOMATE_GAIN, CENTER_COMPUTE, DEAL_COMPUTE, DEAL_FEE, DEAL_RESERVE, DRIFT, ELECTION, IMPORT_CUT, LAST_ROUND, MANUAL_TRUST, SHOCK_IMPORT, SHOCK_ROUND, SURGE,
-  TRUST_FLOOR, VICTORY, SURVIVED, type State,
+  TRUST_FLOOR, VICTORY, SURVIVED, WIN, PREP_TRUST, prepTrust, CENTER_STEP, CENTER_UPKEEP, centerUpkeep, costs, type State,
 } from './game';
 
 const kept = (state: State) => state.sectors.map(s => s.allocation);
@@ -236,5 +236,34 @@ describe('роки дефіциту', () => {
   it('відмінює числівники', () => {
     const forms: [string, string, string] = ['етап', 'етапи', 'етапів'];
     expect([1, 2, 5, 11, 21, 24, 112].map(n => plural(n, forms))).toEqual(['етап', 'етапи', 'етапів', 'етапів', 'етап', 'етапи', 'етапів']);
+  });
+
+  it('робить кожен наступний дата-центр дорожчим і бере плату за утримання запущених', () => {
+    const state = initialState(); state.budget = 300;
+    expect(policyCost(state, 'center')).toBe(costs.center);
+    let next = resolveRound(state, [], 'center', 0).state;
+    expect(next.centers).toBe(1);
+    expect(centerUpkeep(next)).toBe(0);
+    while (next.project > 0) next = resolveRound(next, [], 'automate', 2).state;
+    expect(policyCost(next, 'center')).toBe(costs.center + CENTER_STEP);
+    expect(centerUpkeep(next)).toBe(CENTER_UPKEEP);
+    expect(resolveRound(next, [], 'train', 1).upkeep).toBe(CENTER_UPKEEP);
+  });
+
+  it('у бум забирає довіру за навчання й дата-центр, у дефіцит — ні', () => {
+    const state = initialState(); state.budget = 300;
+    const idle = resolveRound(state, [], 'automate', 2).trustDelta - 2;
+    expect(resolveRound(state, [], 'center', 0).trustDelta).toBe(idle - PREP_TRUST);
+    expect(prepTrust(state, 'train')).toBe(PREP_TRUST);
+    expect(prepTrust(crisis(), 'train')).toBe(0);
+    expect(prepTrust(crisis(), 'center')).toBe(0);
+  });
+
+  it('вимагає навичок у кожній галузі, а не в середньому', () => {
+    const state = initialState();
+    state.sectors.forEach(s => s.reserve = 90); state.sectors[2].reserve = WIN.reserve - 1;
+    expect(landingChecks(state)[2].ok).toBe(false);
+    state.sectors[2].reserve = WIN.reserve;
+    expect(landingChecks(state)[2].ok).toBe(true);
   });
 });

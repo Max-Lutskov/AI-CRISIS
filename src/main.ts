@@ -1,9 +1,9 @@
 import './style.css';
 import {
   initialState, resolveRound, forecastFor, policyCost, corporateFee, canChoose, availableCompute, landingChecks, surgeOf, need, totalNeed, plural,
-  phaseOf, yearOf, policiesFor, needsTarget, chronicle, averageReserve, averageAutomation,
-  symbols, names, AUTOMATE_BUDGET, AUTOMATE_GAIN, AUTOMATE_TRUST, BUILD_THRESHOLD, CENTER_COMPUTE, CENTER_STAGES, COLLAPSE_LEVEL, DEAL_COMPUTE, DEAL_FEE, DEAL_RESERVE, DEAL_TRUST,
-  ELECTION, FAILURE_LEVEL, LAST_ROUND, MANUAL_TRUST, MAX_PER_SECTOR, REGULATE_TRUST, SHOCK_ROUND, START_YEAR, SURVIVED, TRUST_FLOOR, TRUST_WEIGHTS, VICTORY, WIN,
+  phaseOf, yearOf, policiesFor, needsTarget, chronicle, averageReserve, averageAutomation, weakestReserve, centerUpkeep, prepTrust,
+  symbols, names, AUTOMATE_BUDGET, AUTOMATE_GAIN, AUTOMATE_TRUST, BUILD_THRESHOLD, CENTER_COMPUTE, CENTER_STAGES, CENTER_STEP, CENTER_UPKEEP, COLLAPSE_LEVEL, DEAL_COMPUTE, DEAL_FEE, DEAL_RESERVE, DEAL_TRUST,
+  ELECTION, FAILURE_LEVEL, LAST_ROUND, MANUAL_TRUST, MAX_PER_SECTOR, PREP_TRUST, REGULATE_TRUST, SHOCK_ROUND, START_YEAR, SURVIVED, TRUST_FLOOR, TRUST_WEIGHTS, VICTORY, WIN,
   type Policy, type Result, type State,
 } from './core/game';
 
@@ -42,8 +42,8 @@ const policyData: Record<Policy, { title: string; art: string; text: string; eff
     effects: [['Ріст ШІ цього року', 'удвічі менший', 'good'], ['Втрата навичок', 'удвічі менша', 'good'], ['Довіра', `−${REGULATE_TRUST}`, 'bad']] },
   train: { title: 'Повернути навички', art: 'train', text: 'Практика без ШІ в обраній галузі. Цього року працюємо повільніше, зате люди пам’ятатимуть, як це робиться.',
     effects: [['Навички галузі', 'до +15', 'good'], ['Послуги галузі', '−15%', 'bad']] },
-  center: { title: 'Власний дата-центр', art: 'center', text: 'Будівництво державних серверів. Етап зараховується, лише коли логістика та ІТ працюють.',
-    effects: [['Свої обчислення', `+${CENTER_COMPUTE}`, 'good'], ['Будівництво', `${CENTER_STAGES} роки`, 'plain'], ['ІТ і логістика', `від ${BUILD_THRESHOLD}%`, 'plain']] },
+  center: { title: 'Власний дата-центр', art: 'center', text: `Будівництво державних серверів. Етап зараховується, лише коли логістика та ІТ працюють. Кожен наступний дата-центр дорожчий на ${CENTER_STEP}.`,
+    effects: [['Свої обчислення', `+${CENTER_COMPUTE}`, 'good'], ['Будівництво', `${CENTER_STAGES} роки`, 'plain'], ['ІТ і логістика', `від ${BUILD_THRESHOLD}%`, 'plain'], ['Утримання щороку', `−${CENTER_UPKEEP}`, 'bad']] },
   contract: { title: 'Прийняти допомогу', art: 'contract', text: 'Корпорація розширить квоту вже цього року й назавжди. З кожною угодою її голос у державі важить більше.',
     effects: [['Квота назавжди', `+${DEAL_COMPUTE}`, 'good'], ['Бюджет щороку', `−${DEAL_FEE}`, 'bad'], ['Навички всіх', `−${DEAL_RESERVE}`, 'bad'], ['Довіра', `−${DEAL_TRUST}`, 'bad']] },
   manual: { title: 'Ручний режим', art: 'manual', text: 'Перевести обрану галузь на роботу без ШІ наказом. Безкоштовно для бюджету, дорого для людей.',
@@ -59,6 +59,7 @@ const targeted = () => needsTarget(policy);
 const stagesLeft = (n: number) => `${n} ${plural(n, ['етап', 'етапи', 'етапів'])}`;
 const comma = (n: number) => n.toFixed(1).replace('.', ',');
 const pct = (n: number) => Math.round(n) + '%';
+const sentence = (text: string) => /[.?!]$/.test(text) ? text : text + '.';
 
 function sound(frequency = 180) {
   if (muted) return;
@@ -117,7 +118,7 @@ const slides = [
   { year: '2022', title: 'З’явився штучний інтелект', art: 'news-photo', text: 'Програми навчилися писати, рахувати, планувати й радити не гірше за фахівця. Доступ коштує копійки: компанії-постачальники роздають його майже задарма, аби всі звикли.' },
   { year: String(START_YEAR), title: 'Ви очолюєте уряд', art: 'sector-government', text: 'Сім галузей країни тримаються на людях, які знають свою справу. ШІ обіцяє робити те саме швидше й дешевше. Щороку ви підписуєте один указ і дивитеся, що з цього вийшло.' },
   { year: 'Правила', title: 'Два числа кожної галузі', art: 'policy-train', text: '<b>ШІ робить</b> — яку частку роботи передано машині. Що вона більша, то кращі послуги, але то більше обчислень потрібно. <b>Навички</b> — скільки галузь потягне сама, якщо ШІ вимкнуть. Що більше роботи робить ШІ, то швидше люди забувають, як робити її самим.' },
-  { year: `Мета · ${LAST_YEAR}`, title: 'Довести країну до кінця', art: 'policy-center', text: `Ніхто не знає, скільки триватиме дешевий ШІ. До ${LAST_YEAR} року треба зберегти три речі: <b>люди довіряють уряду</b> (від ${WIN.trust}%), <b>кожна галузь працює</b> (від ${WIN.service}%), <b>люди вміють без ШІ</b> (навички від ${WIN.reserve}%). У ${ELECTION_YEAR}-му вибори: з довірою нижче ${ELECTION}% вас не переоберуть.` },
+  { year: `Мета · ${LAST_YEAR}`, title: 'Довести країну до кінця', art: 'policy-center', text: `Ніхто не знає, скільки триватиме дешевий ШІ. До ${LAST_YEAR} року треба зберегти три речі: <b>люди довіряють уряду</b> (від ${WIN.trust}%), <b>кожна галузь працює</b> (від ${WIN.service}%), <b>у кожній галузі вміють без ШІ</b> (навички від ${WIN.reserve}%). У ${ELECTION_YEAR}-му вибори: з довірою нижче ${ELECTION}% вас не переоберуть.` },
 ];
 function intro(index = 0) {
   screen = 'intro';
@@ -148,11 +149,14 @@ function cabinet() {
   const cost = (id: Policy) => id === 'center' && state.project ? 'Вже будується' : policyCost(state, id) ? `Бюджет: ${policyCost(state, id)}` : 'Безкоштовно';
   const showCrisis = !isBoom && state.round > SHOCK_ROUND;
   app.innerHTML = `${header()}<main class="desk ${isBoom ? 'boom' : 'deficit'}" data-step="0">
-    <nav class="steps" aria-label="Кроки року">
-      <button data-step-to="0"><i>1</i><span>Указ</span><em id="tab-policy"></em></button>
-      <button data-step-to="1"><i>2</i><span>Галузі</span><em id="tab-free"></em></button>
-      <button data-step-to="2"><i>3</i><span>Підпис</span><em id="tab-trust"></em></button>
-    </nav>
+    <footer class="dock">
+      <nav class="steps" aria-label="Кроки року">
+        <button data-step-to="0"><i>1</i><span>Указ</span><em id="tab-policy"></em></button>
+        <button data-step-to="1"><i>2</i><span>Галузі</span><em id="tab-free"></em></button>
+        <button data-step-to="2"><i>3</i><span>Підпис</span><em id="tab-trust"></em></button>
+      </nav>
+      <button class="dock-action" id="dock-action"></button>
+    </footer>
 
     <section class="pane pane-sectors">
       <h2 class="pane-title">${isBoom ? 'Сім галузей країни' : 'Кому вистачить обчислень?'}</h2>
@@ -181,7 +185,7 @@ function cabinet() {
           <h3>${policyData[id].title}</h3>
           <div class="policy-art" style="background-image:url(assets/ui/policy-${policyData[id].art}.webp)"></div>
           <p>${policyData[id].text}</p>
-          <ul class="effects">${policyData[id].effects.map(([label, value, kind]) => `<li><span>${label}</span><b class="${kind}">${value}</b></li>`).join('')}</ul>
+          <ul class="effects">${[...policyData[id].effects, ...(prepTrust(state, id) ? [['Довіра', `−${prepTrust(state, id)}`, 'bad'] as Effect] : [])].map(([label, value, kind]) => `<li><span>${label}</span><b class="${kind}">${value}</b></li>`).join('')}</ul>
           <footer><span>${cost(id)}</span><span class="radio"></span></footer>
         </button>`).join('')}</div>
     </section>
@@ -205,8 +209,8 @@ function cabinet() {
       <div class="newspaper-name">Урядовий вісник</div><div class="edition">${year} рік · ${isBoom ? 'дешевий ШІ' : 'дефіцит обчислень'}</div>
       <div class="news-image"></div>
       <h2>${story?.headline ?? result?.headline ?? ''}</h2>
-      <p class="lead">${story?.body ?? result?.description ?? ''}</p>
-      ${story && result ? `<p class="last-year"><b>Торік.</b> ${result.headline.replace(/\.$/, '')}. ${result.description}</p>` : ''}
+      <p class="lead">${story?.body ?? result?.lead.body ?? ''}</p>
+      ${result ? `<p class="last-year"><b>Торік.</b> ${story ? `${sentence(result.headline)} ${result.lead.body} ` : ''}${result.description}</p>` : ''}
       ${showCrisis ? `<div class="crisis-note ${crisis.kind}"><span class="eyebrow">Подія року</span><strong>${crisis.title}</strong><p>${crisis.body}</p></div>` : ''}
       <span class="eyebrow">Мета до ${LAST_YEAR} року</span>
       ${checklist()}
@@ -230,9 +234,8 @@ function cabinet() {
   $('#brief-toggle').onclick = () => toggleBrief(!briefing.classList.contains('open'));
   document.querySelectorAll<HTMLElement>('[data-open-brief]').forEach(b => b.onclick = () => toggleBrief(true));
   document.querySelectorAll<HTMLElement>('[data-close-brief]').forEach(b => b.onclick = () => toggleBrief(false));
-  document.querySelectorAll<HTMLButtonElement>('[data-step-to]').forEach(button => button.onclick = () => {
-    step = Number(button.dataset.stepTo); toggleBrief(false); updateCabinet(); sound(240); window.scrollTo(0, 0);
-  });
+  const goTo = (next: number) => { step = next; toggleBrief(false); updateCabinet(); sound(240); window.scrollTo(0, 0); };
+  document.querySelectorAll<HTMLButtonElement>('[data-step-to]').forEach(button => button.onclick = () => goTo(Number(button.dataset.stepTo)));
   document.querySelectorAll<HTMLButtonElement>('[data-adjust]').forEach(button => button.onclick = () => {
     const [i, change] = button.dataset.adjust!.split(',').map(Number);
     const free = availableCompute(state, policy) - total();
@@ -242,7 +245,7 @@ function cabinet() {
     policy = button.dataset.policy as Policy; fitAllocations(); updateCabinet(); sound(260);
   });
   $<HTMLSelectElement>('#target').onchange = e => { target = Number((e.target as HTMLSelectElement).value); updateCabinet(); };
-  $<HTMLButtonElement>('#sign').onclick = () => {
+  const sign = () => {
     const outcome = preview();
     if (!outcome) return;
     result = outcome;
@@ -250,6 +253,9 @@ function cabinet() {
     $('#stamp').classList.add('stamped'); sound(90);
     setTimeout(city, 650);
   };
+  $<HTMLButtonElement>('#sign').onclick = sign;
+  // Нижня панель телефона: одна головна кнопка, що веде крок за кроком до підпису.
+  $<HTMLButtonElement>('#dock-action').onclick = () => { if (step < 2) goTo(step + 1); else sign(); };
   $('#forecast-strip').onclick = e => {
     const link = (e.target as HTMLElement).closest<HTMLElement>('[data-goto]');
     if (link) { step = Number(link.dataset.goto); updateCabinet(); window.scrollTo(0, 0); }
@@ -314,7 +320,7 @@ function updateCabinet() {
         <div><b class="${outcome.trustDelta < 0 ? 'danger' : 'good'}">${signed(outcome.trustDelta)}</b><span>довіра → ${next.trust}%</span></div>
         <div><b class="${next.budget < state.budget ? 'warning' : 'good'}">${signed(next.budget - state.budget)}</b><span>бюджет → ${next.budget}</span></div>
         ${third}
-        <div><b>${pct(averageReserve(next))}</b><span>навички (${signed(Math.round(averageReserve(next) - averageReserve(state)))})</span></div>
+        <div><b>${pct(averageReserve(next))}</b><span>навички (${signed(Math.round(averageReserve(next) - averageReserve(state)))}), найменше ${pct(weakestReserve(next))}</span></div>
       </div>
       ${building ? `<p class="${built ? 'good' : 'danger'}">${built ? `✓ Етап будівництва буде завершено${next.project ? `, залишиться ${stagesLeft(next.project)}` : ' — дата-центр запрацює'}.` : `✗ Будівництво стоятиме: потрібно ІТ і логістику від ${BUILD_THRESHOLD}%, зараз ${it}% і ${logistics}%.`}</p>` : ''}
       ${free > 0 ? `<p class="warning">Нерозподілено: ${free} ${plural(free, ['одиниця', 'одиниці', 'одиниць'])} обчислень. <button class="text-button goto-sectors" data-goto="1">Розподілити →</button></p>` : ''}
@@ -330,6 +336,13 @@ function updateCabinet() {
   const sign = $<HTMLButtonElement>('#sign');
   sign.innerHTML = 'Підписати<br>указ';
   sign.disabled = !outcome;
+  const action = $<HTMLButtonElement>('#dock-action');
+  const [label, note] = step === 0 ? ['Далі: галузі →', isBoom ? 'прогноз для кожної галузі' : 'розподілити обчислення']
+    : step === 1 ? ['Далі: підпис →', free > 0 ? `ще вільних ${free}` : 'прогноз року']
+    : ['Підписати указ', policyTitle() + (targeted() ? ` · ${names[target]}` : '')];
+  action.innerHTML = `<span>${label}</span><small class="${step === 1 && free > 0 ? 'warning' : ''}">${note}</small>`;
+  action.classList.toggle('final', step === 2);
+  action.disabled = step === 2 && !outcome;
 }
 
 // ── Місто ───────────────────────────────────────────────────────────────────
@@ -339,7 +352,7 @@ function city() {
     <div class="world-art"></div><div class="city-vignette"></div>
     <div class="world-title"><span class="eyebrow">Указ підписано</span><h1>${yearOf(state.round)} рік триває.</h1><p>${policyTitle()}</p></div>
     <div class="takeover-notice" id="takeover-notice" hidden>КОНТРОЛЬ ПЕРЕДАНО КОРПОРАЦІЇ <small>· незалежність втрачено</small></div>
-    <div class="map-stage">${positions.map((pos, i) => `<button class="district" data-district="${i}" style="left:${pos[0]}%;top:${pos[1]}%"><span>${symbols[i]} ${names[i]}</span><b id="live-sector-${i}">100%</b><i class="district-meter" id="live-bar-${i}"></i></button><div class="district-glow" id="glow-${i}" style="left:${pos[0]}%;top:${pos[1] + 5}%"></div>`).join('')}
+    <div class="map-stage">${positions.map((pos, i) => `<button class="district" data-district="${i}" style="left:${pos[0]}%;top:${pos[1]}%"><span>${symbols[i]}<em> ${names[i]}</em></span><b id="live-sector-${i}">100%</b><i class="district-meter" id="live-bar-${i}"></i></button><div class="district-glow" id="glow-${i}" style="left:${pos[0]}%;top:${pos[1] + 5}%"></div>`).join('')}
       <div class="traffic traffic-one"></div><div class="traffic traffic-two"></div><div class="traffic traffic-three"></div><div class="smoke smoke-one"></div><div class="smoke smoke-two"></div>
     </div>
     <aside class="live-panel">
@@ -434,9 +447,10 @@ function explain(outcome: Result, before: State): { points: string[]; tip: strin
       points: [
         `На виборах ${ELECTION_YEAR} року уряду довіряли ${after.trust}%. Щоб лишитися, потрібно було ${ELECTION}%.`,
         `Кожне «Правило двох ключів» забирає ${REGULATE_TRUST} довіри: людям не подобається, коли все повільніше й дорожче, ніж у сусідів.`,
+        `Навчання й дата-центр у роки буму забирають по ${PREP_TRUST}: поки ШІ дешевий, підготовку вважають марнотратством.`,
         `«ШІ-прорив» навпаки додає ${AUTOMATE_TRUST} довіри й ${AUTOMATE_BUDGET} бюджету, але робить галузь залежною.`,
       ],
-      tip: 'Самою обережністю вибори не виграти. Чергуйте: трохи того, що люблять люди, і трохи підготовки — навчання або власний дата-центр, вони довіри не забирають.',
+      tip: 'Самою обережністю вибори не виграти. Чергуйте: трохи того, що люблять люди, і трохи підготовки. Навчання й дата-центр коштують довіри вдвічі менше за «Правило двох ключів».',
     };
     case 'Вотум недовіри': {
       const line = (i: number, weight: number, verb: string) => `${s[i].name} ${verb} на ${pct(s[i].service)} — довіра ${tenth((Math.min(s[i].service, 105) - 100) * weight)}.`;
@@ -456,6 +470,7 @@ function explain(outcome: Result, before: State): { points: string[]; tip: strin
         outcome.policyCost ? `Указ «${policyTitle()}» коштував ${outcome.policyCost}.` : `Указ «${policyTitle()}» був безкоштовний.`,
         `Надходження — лише ${outcome.income}: промисловість працювала на ${pct(s[2].service)}, логістика довезла ${pct(Math.min(100, s[3].service))} продукції.`,
         `Платежі за ${before.deals} ${plural(before.deals, ['угоду', 'угоди', 'угод'])} з корпорацією — ${outcome.fees}.`,
+        ...(outcome.upkeep ? [`Утримання власних дата-центрів — ${outcome.upkeep}.`] : []),
         `Підсумок: −${Math.abs(after.budget)}. Бюджет нижче нуля означає банкрутство.`,
       ],
       tip: `Гроші дає промисловість, помножена на логістику. Кожна угода забирає ${DEAL_FEE} щороку до кінця партії, тому дві угоди потребують працюючих заводів.`,
@@ -472,12 +487,13 @@ function explain(outcome: Result, before: State): { points: string[]; tip: strin
       const points: string[] = []; const low = s.filter(v => v.service < WIN.service);
       if (after.trust < WIN.trust) points.push(`Довіра ${after.trust}% — потрібно від ${WIN.trust}%. Її з’їдають слабкі лікарні, держпослуги й освіта, а також ручний режим і угоди.`);
       if (low.length) points.push(`Нижче ${WIN.service}% в останньому році: ${listed(low)}. Ця умова рахується саме за ${LAST_YEAR} роком.`);
-      if (averageReserve(after) < WIN.reserve) points.push(`Навички в середньому ${pct(averageReserve(after))} — потрібно від ${WIN.reserve}%. Вони тануть щороку самі, відновлюють їх лише навчання й ручний режим${after.deals ? `, а кожна з ваших угод (${after.deals}) забрала ще ${DEAL_RESERVE}` : ''}.`);
-      return { points, tip: after.owned > 8 ? `Власний дата-центр у вас був. Спробуйте в ${LAST_YEAR} році спершу довести кожну галузь до ${WIN.service}%, а решту віддати лікарням.` : 'Найдешевше готуватися в роки буму: дата-центр, початий до 2025 року, встигає запрацювати до шоку, а навички ще не втрачені.' };
+      const rusty = s.filter(v => v.reserve < WIN.reserve);
+      if (rusty.length) points.push(`Навички нижче ${WIN.reserve}%: ${rusty.map(v => `${v.name} ${Math.floor(v.reserve)}%`).join(', ')}. Потрібно, щоб без ШІ вміли в кожній галузі. Навички тануть щороку самі й найшвидше там, де був «ШІ-прорив»; відновлюють їх лише навчання й ручний режим${after.deals ? `, а кожна з ваших угод (${after.deals}) забрала ще ${DEAL_RESERVE} у кожній галузі` : ''}.`);
+      return { points, tip: rusty.length ? 'Серверами навички не купити. Почніть навчання ще в роки буму, поки люди пам’ятають свою справу, і не робіть «ШІ-прорив» двічі в одній галузі.' : after.owned > 8 ? `Власний дата-центр у вас був. Спробуйте в ${LAST_YEAR} році спершу довести кожну галузь до ${WIN.service}%, а решту віддати лікарням.` : 'Найдешевше готуватися в роки буму: дата-центр, початий до 2025 року, встигає запрацювати до шоку, а навички ще не втрачені.' };
     }
     default: return {
       points: [
-        `Довіра ${after.trust}%, найслабша галузь ${pct(Math.min(...s.map(v => v.service)))}, навички в середньому ${pct(averageReserve(after))}.`,
+        `Довіра ${after.trust}%, найслабша галузь ${pct(Math.min(...s.map(v => v.service)))}, навички щонайменше ${pct(weakestReserve(after))}.`,
         `Власних обчислень — ${after.owned}, угод із корпорацією — ${after.deals} з 3, у бюджеті лишилось ${after.budget}.`,
       ],
       tip: after.deals ? 'Ви впоралися з угодою. Спробуйте дійти сюди ж без жодної.' : 'Ви впоралися без угод. Спробуйте інший сід або ризикованіший бум: більше проривів, менше підготовки.',
@@ -502,15 +518,16 @@ function finishRound() {
     <h2>${outcome.ending ?? outcome.headline}</h2>
     ${outcome.ending ? `<div class="outcome-banner ${outcome.outcome}"><strong>${label}</strong><p>${verdicts[outcome.ending]}</p>${outcome.outcome === 'defeat' ? '' : checklist()}<div class="why"><span class="eyebrow">${outcome.outcome === 'victory' ? 'З чим ви дійшли' : 'Чому так сталося'}</span><ol>${why!.points.map(point => `<li>${point}</li>`).join('')}</ol><p class="tip"><b>Наступного разу.</b> ${why!.tip}</p></div></div>` : ''}
     <div class="report-columns">
-      <div><div class="report-photo"></div><p class="caption">Життя країни після указу «${played}».</p><p class="report-lead">${outcome.ending ? `<b>${outcome.headline.replace(/\.$/, '')}.</b> ` : ''}${outcome.description}</p></div>
+      <div><div class="report-photo"></div><p class="caption">Життя країни після указу «${played}».</p><p class="report-lead">${outcome.ending || outcome.lead.title !== outcome.headline ? `<b>${sentence(outcome.lead.title)}</b> ` : ''}${outcome.lead.body}</p><p class="report-facts">${outcome.description}</p></div>
       <div class="report-analysis"><h3>Ціна рішення</h3>
-        <p>${outcome.policyCost ? `Указ коштував ${outcome.policyCost}.` : 'Указ не коштував бюджету нічого.'}${outcome.fees ? ` Платежі за угоди — ${outcome.fees}.` : ''}${state.deals ? ` Надалі корпорація братиме ${corporateFee(state)} щороку.` : ''}</p>
+        <p>${outcome.policyCost ? `Указ коштував ${outcome.policyCost}.` : 'Указ не коштував бюджету нічого.'}${outcome.fees ? ` Платежі за угоди — ${outcome.fees}.` : ''}${outcome.upkeep ? ` Утримання дата-центрів — ${outcome.upkeep}.` : ''}${state.deals ? ` Надалі корпорація братиме ${corporateFee(state)} щороку.` : ''}${centerUpkeep(state) > outcome.upkeep ? ` Власні сервери відтепер коштують ${centerUpkeep(state)} щороку.` : ''}</p>
         <p>ШІ робить у середньому ${pct(averageAutomation(state))} роботи (${signed(Math.round(averageAutomation(state) - averageAutomation(before)))}), навички людей — ${pct(averageReserve(state))} (${signed(Math.round(averageReserve(state) - averageReserve(before)))}).</p>
         <p>Найбільше підтримки потребує галузь «${worst.name}» — ${Math.round(worst.service)}% послуг.</p>
         ${teaser}
         <div class="report-numbers"><div><strong>${state.trust}%</strong><span>довіра (${signed(outcome.trustDelta)})</span></div><div><strong>+${outcome.income}</strong><span>надходження</span></div><div><strong>${state.budget}</strong><span>бюджет</span></div></div>
       </div>
     </div>
+    ${outcome.stories.length ? `<section class="report-stories"><span class="eyebrow">Тим часом у країні</span><div>${outcome.stories.map(story => `<article><span class="eyebrow">${symbols[story.sector]} ${names[story.sector]}</span><h3>${story.title}</h3><p>${story.body}</p></article>`).join('')}</div></section>` : ''}
     <div class="report-sector-line">${state.sectors.map((s, i) => `<div><span>${symbols[i]} ${s.name}</span><b class="${tone(s.service)}">${Math.round(s.service)}%</b></div>`).join('')}</div>
     <footer><span>${outcome.ending ? 'СЦЕНАРІЙ ЗАВЕРШЕНО' : 'НАСТУПНИЙ РІК ЗАЛЕЖИТЬ ВІД ВАС'}</span>
       <div class="report-actions">${outcome.ending ? '<button class="text-button" id="replay">Переграти цей сід</button>' : ''}<button class="sign-button" id="continue">${outcome.ending ? 'Нова партія ↺' : `До ${yearOf(state.round)} року ↗`}</button></div>

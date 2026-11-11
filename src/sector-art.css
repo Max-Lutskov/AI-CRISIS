@@ -1,0 +1,20 @@
+/* Sector artwork: seven individually framed engraved vignettes. */
+.desk .sector-icon{
+  font-size:0!important;
+  width:100%;min-height:95px;
+  background-image:url('/assets/sectors-engraved.svg');
+  background-repeat:no-repeat;
+  background-size:700% 100%;
+  filter:sepia(.35) contrast(1.35);
+  mix-blend-mode:multiply;
+}
+.desk .sector:nth-child(1) .sector-icon{background-position:0% center}
+.desk .sector:nth-child(2) .sector-icon{background-position:16.6667% center}
+.desk .sector:nth-child(3) .sector-icon{background-position:33.3333% center}
+.desk .sector:nth-child(4) .sector-icon{background-position:50% center}
+.desk .sector:nth-child(5) .sector-icon{background-position:66.6667% center}
+.desk .sector:nth-child(6) .sector-icon{background-position:83.3333% center}
+.desk .sector:nth-child(7) .sector-icon{background-position:100% center}
+@media(max-width:950px) and (orientation:landscape){
+ .desk .sector-icon{min-height:92px}
+}

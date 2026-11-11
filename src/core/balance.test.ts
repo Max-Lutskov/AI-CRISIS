@@ -2,7 +2,7 @@
 // Якщо тест падає після зміни чисел у game.ts — якась стратегія стала домінувати або перемога зникла.
 import { describe, it, expect } from 'vitest';
 import { play, search, weakest, type Picker, type Profile } from './bots';
-import { canChoose } from './game';
+import { canChoose, phaseOf, staffNeed, STAFF_STEP, WIN } from './game';
 
 const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
 const BOOM = 4;
@@ -27,6 +27,15 @@ const manual: Half = s => ({ policy: 'manual', target: weakest(s) });
 const centerThenTrain: Half = (s, i) => i === 0 ? { policy: 'center', target: 0 } : { policy: 'train', target: weakest(s) };
 const dealThenTrain: Half = (s, i) => i === 0 ? { policy: 'contract', target: 0 } : { policy: 'train', target: weakest(s) };
 const centersThenTrain: Half = s => canChoose(s, 'center') ? { policy: 'center', target: 0 } : { policy: 'train', target: weakest(s) };
+/** Досвідчений гравець: один прорив, дата-центри й угоди за планом, ІТ вчить до планки інженерів, далі — найслабшу галузь. */
+const expert = (centers: number, deals: number): Picker => s => {
+  const low = weakest(s);
+  if (s.round === 1) return { policy: 'automate', target: 2 };
+  if (s.centers < centers && canChoose(s, 'center')) return { policy: 'center', target: 0 };
+  if (phaseOf(s) === 'deficit' && s.deals < deals && canChoose(s, 'contract')) return { policy: 'contract', target: 0 };
+  const engineers = staffNeed(s) + (s.project > 0 ? STAFF_STEP : 0);
+  return { policy: 'train', target: s.sectors[low].reserve > WIN.reserve + 6 && s.sectors[0].reserve < engineers ? 0 : low };
+};
 const threeDeals: Half = () => ({ policy: 'contract', target: 0 });
 
 describe('баланс повної партії', () => {
@@ -43,9 +52,14 @@ describe('баланс повної партії', () => {
   });
 
   it('винагороджує підготовку в роки буму', () => {
-    expect(wins(game(prepared, centerThenTrain), 'steady')).toBeGreaterThanOrEqual(16);
-    expect(wins(game(prepared, dealThenTrain), 'steady')).toBeGreaterThanOrEqual(16);
-    expect(wins(game(balanced, centerThenTrain), 'steady')).toBeGreaterThanOrEqual(16);
+    for (const line of [game(prepared, centerThenTrain), game(prepared, dealThenTrain), game(balanced, centerThenTrain)]) expect(wins(line, 'steady') + count(line, 'steady', 'compromise')).toBeGreaterThanOrEqual(14);
+  });
+
+  it('не має рецепта, який виграє на кожному сіді', () => {
+    for (const [centers, deals] of [[2, 0], [1, 1], [1, 0], [3, 0]]) for (const profile of ['steady', 'even', 'people', 'money'] as const)
+      expect(wins(expert(centers, deals), profile), `${centers} дата-центри, ${deals} угоди, ${profile}`).toBeLessThanOrEqual(15);
+    expect(wins(expert(2, 0), 'steady')).toBeGreaterThanOrEqual(6);
+    expect(wins(expert(1, 1), 'steady')).toBeGreaterThanOrEqual(4);
   });
 
   it('не рятує самим навчанням без власних потужностей', () => {
@@ -67,6 +81,8 @@ describe('баланс повної партії', () => {
   });
 
   it('має переможну лінію на кожному сіді', () => {
-    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) expect(search(seed, 2000), `сід ${seed}`).not.toBeNull();
+    const plans = [[2, 0], [1, 1], [1, 0]].flatMap(([centers, deals]) => (['steady', 'even', 'people', 'money'] as const).map(profile => [expert(centers, deals), profile] as const));
+    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+      expect(plans.some(([pick, profile]) => play(seed, pick, profile).outcome === 'victory') || search(seed, 4000) !== null, `сід ${seed}`).toBe(true);
   });
 });

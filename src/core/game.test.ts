@@ -3,7 +3,7 @@ import {
   initialState, resolveRound, services, forecastServices, forecastFor, policyCost, availableCompute, canChoose, crisisFor, landingChecks, plural, surgeOf, phaseOf, yearOf,
   proportional, averageReserve, averageAutomation, policiesFor, chronicle,
   AUTOMATE_BUDGET, AUTOMATE_GAIN, CENTER_COMPUTE, DEAL_COMPUTE, DEAL_FEE, DEAL_RESERVE, DRIFT, ELECTION, IMPORT_CUT, LAST_ROUND, MANUAL_TRUST, SHOCK_IMPORT, SHOCK_ROUND, SURGE,
-  TRUST_FLOOR, VICTORY, SURVIVED, BROKEN, WIN, PREP_TRUST, prepTrust, CENTER_STEP, CENTER_UPKEEP, centerUpkeep, costs, type State,
+  TRUST_FLOOR, VICTORY, SURVIVED, BROKEN, WIN, PREP_TRUST, prepTrust, CENTER_STEP, CENTER_UPKEEP, centerUpkeep, costs, ownedCompute, ownedShare, staffNeed, OUTAGE, STAFF_BASE, STAFF_STEP, type State,
 } from './game';
 
 const kept = (state: State) => state.sectors.map(s => s.allocation);
@@ -71,7 +71,7 @@ describe('роки буму', () => {
     for (let i = 0; i < 4; i++) state = resolveRound(state, [], 'automate', i).state;
     expect([yearOf(state.round), phaseOf(state)]).toEqual([2027, 'deficit']);
     expect(state.imports).toBe(SHOCK_IMPORT);
-    expect(state.capacity).toBeGreaterThan(SHOCK_IMPORT);
+    expect(state.capacity).toBe(SHOCK_IMPORT + ownedCompute(state));
     expect(kept(state).reduce((a, b) => a + b, 0)).toBe(state.capacity);
     expect(canChoose(state, 'automate')).toBe(false);
     expect(canChoose(state, 'manual')).toBe(true);
@@ -145,7 +145,7 @@ describe('роки дефіциту', () => {
     const plain = resolveRound(state, kept(state), 'train', 1);
     expect(deal.state.imports).toBe(plain.state.imports + DEAL_COMPUTE);
     expect(deal.state.sectors[2].reserve).toBeCloseTo(plain.state.sectors[2].reserve - DEAL_RESERVE);
-    const after = resolveRound(deal.state, [8, 5, 8, 7, 6, 7, 7], 'train', 1);
+    const after = resolveRound(deal.state, [8, 5, 8, 7, 6, 7, 6], 'train', 1);
     expect(after.fees).toBe(DEAL_FEE);
     expect(after.state.budget).toBe(deal.state.budget - 24 + after.income - DEAL_FEE);
   });
@@ -230,7 +230,7 @@ describe('роки дефіциту', () => {
     }
     const kinds = new Set<string>();
     for (let seed = 1; seed <= 40; seed++) for (let round = SHOCK_ROUND + 1; round <= LAST_ROUND; round++) kinds.add(crisisFor(seed, round).kind);
-    expect([...kinds].sort()).toEqual(['calm', 'quota', 'surge', 'windfall']);
+    expect([...kinds].sort()).toEqual(['calm', 'outage', 'quota', 'surge', 'windfall']);
   });
 
   it('відмінює числівники', () => {
@@ -248,6 +248,28 @@ describe('роки дефіциту', () => {
     expect(policyCost(next, 'center')).toBe(costs.center + CENTER_STEP);
     expect(centerUpkeep(next)).toBe(CENTER_UPKEEP);
     expect(resolveRound(next, [], 'train', 1).upkeep).toBe(CENTER_UPKEEP);
+  });
+
+  it('вмикає власні сервери лише за наявності інженерів і струму', () => {
+    const state = crisis(); state.owned = 8 + CENTER_COMPUTE * 2; state.centers = 2;
+    expect(staffNeed(state)).toBe(STAFF_BASE + 2 * STAFF_STEP);
+    state.sectors[4].service = 100; state.sectors[0].reserve = staffNeed(state);
+    expect(ownedCompute(state)).toBe(state.owned);
+    state.sectors[0].reserve = staffNeed(state) / 2;
+    expect(ownedShare(state)).toBeCloseTo(.5);
+    state.sectors[4].service = 25;
+    expect(ownedShare(state)).toBeCloseTo(.25);
+    state.project = 2; // третій ще будується і людей не потребує
+    expect(staffNeed(state)).toBe(STAFF_BASE + STAFF_STEP);
+    const next = resolveRound(state, [0, 0, 0, 0, 0, 0, 0], 'train', 0).state;
+    expect(next.capacity).toBe(next.imports + ownedCompute(next));
+  });
+
+  it('в аварію лишає в мережі частину власних серверів', () => {
+    const state = crisis(); state.sectors[4].service = 100; state.sectors[0].reserve = 90;
+    const full = ownedCompute(state);
+    state.crisis = { kind: 'outage', sector: -1, title: '', body: '' };
+    expect(ownedCompute(state)).toBe(Math.floor(full * OUTAGE));
   });
 
   it('у бум забирає довіру за навчання й дата-центр, у дефіцит — ні', () => {

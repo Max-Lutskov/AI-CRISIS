@@ -2,8 +2,8 @@ import './style.css';
 import { audio } from './audio';
 import {
   initialState, resolveRound, forecastFor, policyCost, corporateFee, canChoose, availableCompute, landingChecks, surgeOf, need, totalNeed, plural,
-  phaseOf, yearOf, policiesFor, money, needsTarget, chronicle, averageReserve, averageAutomation, weakestReserve, centerUpkeep, prepTrust,
-  symbols, names, AUTOMATE_BUDGET, AUTOMATE_GAIN, AUTOMATE_TRUST, BUILD_THRESHOLD, CENTER_COMPUTE, CENTER_STAGES, CENTER_STEP, CENTER_UPKEEP, COLLAPSE_LEVEL, DEAL_COMPUTE, DEAL_FEE, DEAL_RESERVE, DEAL_TRUST,
+  phaseOf, yearOf, policiesFor, money, needsTarget, chronicle, averageReserve, averageAutomation, weakestReserve, centerUpkeep, prepTrust, ownedCompute, staffNeed,
+  symbols, names, AUTOMATE_BUDGET, AUTOMATE_GAIN, AUTOMATE_TRUST, BUILD_THRESHOLD, CENTER_COMPUTE, CENTER_STAGES, CENTER_STEP, CENTER_UPKEEP, STAFF_BASE, STAFF_STEP, COLLAPSE_LEVEL, DEAL_COMPUTE, DEAL_FEE, DEAL_RESERVE, DEAL_TRUST,
   ELECTION, FAILURE_LEVEL, LAST_ROUND, MANUAL_TRUST, MAX_PER_SECTOR, PREP_TRUST, REGULATE_TRUST, SHOCK_ROUND, START_YEAR, SURVIVED, BROKEN, TRUST_FLOOR, TRUST_WEIGHTS, VICTORY, WIN,
   type Policy, type Result, type State,
 } from './core/game';
@@ -44,7 +44,7 @@ const policyData: Record<Policy, { title: string; art: string; text: string; eff
     effects: [['Ріст ШІ цього року', 'удвічі менший', 'good'], ['Втрата навичок', 'удвічі менша', 'good'], ['Довіра', `−${REGULATE_TRUST}`, 'bad']] },
   train: { title: 'Повернути навички', art: 'train', text: 'Практика без ШІ в обраній галузі. Цього року працюємо повільніше, зате люди пам’ятатимуть, як це робиться.',
     effects: [['Навички галузі', 'до +15', 'good'], ['Послуги галузі', '−15%', 'bad']] },
-  center: { title: 'Власний дата-центр', art: 'center', text: `Будівництво державних серверів. Етап зараховується, лише коли логістика та ІТ працюють. Кожен наступний дата-центр дорожчий на ${money(CENTER_STEP)}.`,
+  center: { title: 'Власний дата-центр', art: 'center', text: `Державні сервери. Етап будівництва зараховується, лише коли логістика та ІТ працюють. Серверам потрібні інженери: бракує навичок ІТ — частина заліза стоїть. Кожен наступний дата-центр дорожчий на ${money(CENTER_STEP)} і піднімає цю планку на ${STAFF_STEP}.`,
     effects: [['Свої сервери', `+${CENTER_COMPUTE} тис.`, 'good'], ['Будівництво', `${CENTER_STAGES} роки`, 'plain'], ['ІТ і логістика', `від ${BUILD_THRESHOLD}%`, 'plain'], ['Утримання щороку', `−${money(CENTER_UPKEEP)}`, 'bad']] },
   contract: { title: 'Прийняти допомогу', art: 'contract', text: 'Корпорація розширить квоту вже цього року й назавжди. З кожною угодою її голос у державі важить більше.',
     effects: [['Квота назавжди', `+${DEAL_COMPUTE} тис.`, 'good'], ['Бюджет щороку', `−${money(DEAL_FEE)}`, 'bad'], ['Навички всіх', `−${DEAL_RESERVE}`, 'bad'], ['Довіра', `−${DEAL_TRUST}`, 'bad']] },
@@ -52,6 +52,13 @@ const policyData: Record<Policy, { title: string; art: string; text: string; eff
     effects: [['Навички галузі', 'до +22', 'good'], ['Послуги галузі', '−35%', 'bad'], ['Довіра', `−${MANUAL_TRUST}`, 'bad']] },
 };
 const boom = () => phaseOf(state) === 'boom';
+/** Скільки власних серверів справді працює і що їх тримає. */
+function ownedNote() {
+  if (phaseOf(state) === 'boom') return `Власні сервери: ${state.owned} тис. Працюватимуть повністю, якщо навички ІТ будуть від ${staffNeed(state)}% (зараз ${Math.floor(state.sectors[0].reserve)}%)`;
+  const working = ownedCompute(state), skill = Math.floor(state.sectors[0].reserve);
+  const why = [state.crisis.kind === 'outage' ? 'аварія' : '', skill < staffNeed(state) ? `бракує інженерів: навички ІТ ${skill}% з потрібних ${staffNeed(state)}%` : '', state.sectors[4].service < 100 ? 'не вистачає струму' : ''].filter(Boolean);
+  return `Власні сервери: ${state.owned} тис., працює ${working}${working < state.owned && why.length ? ` — ${why.join(', ')}` : ''}`;
+}
 const policyTitle = () => policyData[policy].title;
 const tone = (n: number) => n < 75 ? 'danger' : n < 100 ? 'warning' : 'good';
 const trustTone = (n: number) => n < 35 ? 'danger' : n < WIN.trust ? 'warning' : 'good';
@@ -181,7 +188,7 @@ function cabinet() {
           <h3>${policyData[id].title}</h3>
           <div class="policy-art" style="background-image:url(assets/ui/policy-${policyData[id].art}.webp)"></div>
           <p>${policyData[id].text}</p>
-          <ul class="effects">${[...policyData[id].effects, ...(prepTrust(state, id) ? [['Довіра', `−${prepTrust(state, id)}`, 'bad'] as Effect] : [])].map(([label, value, kind]) => `<li><span>${label}</span><b class="${kind}">${value}</b></li>`).join('')}</ul>
+          <ul class="effects">${[...policyData[id].effects, ...(id === 'center' ? [['Навички ІТ', `від ${STAFF_BASE + (state.centers + 1) * STAFF_STEP}%`, 'plain'] as Effect] : []), ...(prepTrust(state, id) ? [['Довіра', `−${prepTrust(state, id)}`, 'bad'] as Effect] : [])].map(([label, value, kind]) => `<li><span>${label}</span><b class="${kind}">${value}</b></li>`).join('')}</ul>
           <footer><span>${cost(id)}</span><span class="radio"></span></footer>
         </button>`).join('')}</div>
     </section>
@@ -211,7 +218,7 @@ function cabinet() {
       <span class="eyebrow">Мета до ${LAST_YEAR} року</span>
       ${checklist()}
       <p class="floor-note">${goalNote()}</p>
-      <div class="project-note">${state.project ? `Дата-центр: до запуску ${stagesLeft(state.project)}` : `Власні сервери: ${state.owned} тис.`}<br>${isBoom ? 'Імпортний ШІ: без обмежень, майже задарма' : `Імпортна квота: ${state.imports} тис. серверів, щороку менше`}</div>
+      <div class="project-note">${state.project ? `Дата-центр: до запуску ${stagesLeft(state.project)}<br>` : ''}${ownedNote()}<br>${isBoom ? 'Імпортний ШІ: без обмежень, майже задарма' : `Імпортна квота: ${state.imports} тис. серверів, щороку менше`}</div>
       ${isBoom ? '' : `<div class="deal-note">Угоди з корпорацією <b>${state.deals} / 3</b></div>`}
       <div class="deal-note">Сід партії <b>${seed}</b></div>
       <div class="brief-links"><button class="text-button" id="how-to">Як грати</button><button class="text-button" id="restart">Нова партія ↺</button></div>
@@ -309,7 +316,7 @@ function updateCabinet() {
     tabTrust.textContent = `довіра ${signed(outcome.trustDelta)}`; tabTrust.className = outcome.trustDelta < 0 ? 'danger' : '';
     const third = isBoom
       ? `<div><b>${pct(averageAutomation(next))}</b><span>роботи робить ШІ (${signed(Math.round(averageAutomation(next) - averageAutomation(state)))})</span></div>`
-      : state.round < LAST_ROUND ? `<div><b>${next.imports + Math.floor(next.owned * Math.min(1, next.sectors[4].service / 100))}</b><span>тис. серверів наступного року</span></div>`
+      : state.round < LAST_ROUND ? `<div><b>${next.imports + ownedCompute({ ...next, crisis: { ...next.crisis, kind: 'calm' } })}</b><span>тис. серверів наступного року</span></div>`
       : `<div><b>${LAST_YEAR}</b><span>останній рік</span></div>`;
     strip.innerHTML = `<span class="eyebrow">Прогноз на ${yearOf(state.round)} рік</span>
       <div class="forecast-items">
@@ -486,7 +493,7 @@ function explain(outcome: Result, before: State): { points: string[]; tip: strin
       if (low.length) points.push(`Нижче ${WIN.service}% в останньому році: ${listed(low)}. Ця умова рахується саме за ${LAST_YEAR} роком.`);
       const rusty = s.filter(v => v.reserve < WIN.reserve);
       if (rusty.length) points.push(`Навички нижче ${WIN.reserve}%: ${rusty.map(v => `${v.name} ${Math.floor(v.reserve)}%`).join(', ')}. Потрібно, щоб без ШІ вміли в кожній галузі. Навички тануть щороку самі й найшвидше там, де був «ШІ-прорив»; відновлюють їх лише навчання й ручний режим${after.deals ? `, а кожна з ваших угод (${after.deals}) забрала ще ${DEAL_RESERVE} у кожній галузі` : ''}.`);
-      return { points, tip: rusty.length ? 'Серверами навички не купити. Почніть навчання ще в роки буму, поки люди пам’ятають свою справу, і не робіть «ШІ-прорив» двічі в одній галузі.' : after.owned > 8 ? `Власний дата-центр у вас був. Спробуйте в ${LAST_YEAR} році спершу довести кожну галузь до ${WIN.service}%, а решту віддати лікарням.` : 'Найдешевше готуватися в роки буму: дата-центр, початий до 2025 року, встигає запрацювати до шоку, а навички ще не втрачені.' };
+      return { points, tip: rusty.length ? 'Серверами навички не купити. Почніть навчання ще в роки буму, поки люди пам’ятають свою справу, і не робіть «ШІ-прорив» двічі в одній галузі.' : after.owned > 8 && after.sectors[0].reserve < staffNeed(after) ? `Дата-центри у вас були, але працювали не повністю: навички ІТ ${Math.floor(after.sectors[0].reserve)}% за потрібних ${staffNeed(after)}%. Вчіть ІТ до запуску серверів або будуйте менше.` : after.owned > 8 ? `Власний дата-центр у вас був. Спробуйте в ${LAST_YEAR} році спершу довести кожну галузь до ${WIN.service}%, а решту віддати лікарням.` : 'Найдешевше готуватися в роки буму: дата-центр, початий до 2025 року, встигає запрацювати до шоку, а навички ще не втрачені.' };
     }
     default: return {
       points: [

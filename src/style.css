@@ -135,7 +135,7 @@ button:disabled { cursor: not-allowed; }
 .crisis-note { margin: 14px 0; padding: 10px 12px; border-left: 4px solid #8d7a52; background: #e3cfa6aa; }
 .crisis-note strong { display: block; font: 700 16px/1.25 'Playfair Display', serif; margin: 4px 0; }
 .crisis-note p { font-size: 13px; line-height: 1.45; }
-.crisis-note.surge, .crisis-note.quota { border-left-color: var(--danger); }
+.crisis-note.surge, .crisis-note.quota, .crisis-note.outage { border-left-color: var(--danger); }
 .crisis-note.windfall { border-left-color: var(--green); }
 .checks { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; }
 .checks li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid #51452d2e; }
@@ -297,7 +297,7 @@ dialog button { min-height: 44px; padding: 10px 14px; margin: 0 8px 8px 0; borde
   .allocation-control button { width: 48px; height: 40px; }
   .sector-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .crisis-chip { flex: 1; min-height: 0; padding: 8px; text-align: left; border: 1px solid #b98f63; border-left: 4px solid #8d7a52; border-radius: 4px; background: #e9d3a8; overflow: hidden; }
-  .crisis-chip.surge, .crisis-chip.quota { border-left-color: var(--danger); } .crisis-chip.windfall { border-left-color: var(--green); }
+  .crisis-chip.surge, .crisis-chip.quota, .crisis-chip.outage { border-left-color: var(--danger); } .crisis-chip.windfall { border-left-color: var(--green); }
   .crisis-chip strong { display: block; margin-top: 3px; font: 700 14px/1.2 'Playfair Display', serif; }
   .crisis-chip .eyebrow { font-size: 9px; }
 

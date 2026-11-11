@@ -4,7 +4,7 @@ export const names = ['ІТ', 'Освіта', 'Промисловість', 'Л�
 export const symbols = ['⌘', '◈', '▥', '⇄', 'ϟ', '✚', '▤'];
 
 export type Sector = { name: string; automation: number; reserve: number; allocation: number; service: number };
-export type Crisis = { kind: 'calm' | 'surge' | 'quota' | 'windfall'; sector: number; title: string; body: string };
+export type Crisis = { kind: 'calm' | 'surge' | 'quota' | 'windfall' | 'outage'; sector: number; title: string; body: string };
 export type Phase = 'boom' | 'deficit';
 export type State = {
   /** Рік гри: 1 — це 2023-й. Роки 1–4 — бум, з 5-го — дефіцит. */
@@ -60,6 +60,9 @@ export const CENTER_STAGES = 3;
 export const CENTER_COMPUTE = 16;
 export const CENTER_STEP = 10;        // кожен наступний дата-центр дорожчий
 export const CENTER_UPKEEP = 4;       // щорічне утримання кожного запущеного дата-центру
+export const STAFF_BASE = 20;         // навички ІТ, з якими працюють усі власні сервери без нових дата-центрів
+export const STAFF_STEP = 10;         // кожен запущений дата-центр піднімає цю планку
+export const OUTAGE = .6;             // аварія: частка власних серверів, що лишається в мережі
 export const BUILD_THRESHOLD = 75;    // ІТ і логістика для етапу будівництва
 export const TRUST_FLOOR = 25;        // нижче — вотум недовіри
 export const FAILURE_LEVEL = 50;      // збій галузі б'є по довірі одразу
@@ -94,6 +97,11 @@ export const corporateFee = (state: State) => state.deals * DEAL_FEE;
 /** Запущені дата-центри: розпочаті без того, що ще будується. */
 export const launchedCenters = (state: State) => state.centers - (state.project > 0 ? 1 : 0);
 export const centerUpkeep = (state: State) => launchedCenters(state) * CENTER_UPKEEP;
+/** Навички ІТ, потрібні, щоб усі власні сервери працювали: що більше дата-центрів, то більше інженерів. */
+export const staffNeed = (state: State) => STAFF_BASE + launchedCenters(state) * STAFF_STEP;
+/** Частка власних серверів у мережі: обмежена струмом, інженерами та аварією року. */
+export const ownedShare = (state: State) => Math.min(clamp(state.sectors[4].service / 100, 0, 1), clamp(state.sectors[0].reserve / staffNeed(state), 0, 1)) * (state.crisis.kind === 'outage' ? OUTAGE : 1);
+export const ownedCompute = (state: State) => Math.floor(state.owned * ownedShare(state));
 export const policyCost = (state: State, policy: Policy) => costs[policy] + (policy === 'contract' ? state.deals * DEAL_STEP : policy === 'center' ? state.centers * CENTER_STEP : 0);
 /** Обчислення, які можна розподілити цього року з урахуванням обраного указу. */
 export const availableCompute = (state: State, policy: Policy) => state.capacity + (policy === 'contract' ? DEAL_COMPUTE : 0);
@@ -144,9 +152,10 @@ function random(seed: number, round: number): () => number {
 export function crisisFor(seed: number, round: number): Crisis {
   if (!seed || round <= SHOCK_ROUND) return calm;
   const next = random(seed, round); const roll = next();
-  if (roll < .6) { const sector = Math.floor(next() * 7); return { kind: 'surge', sector, title: surges[sector][0], body: surges[sector][1] }; }
-  if (roll < .78) return { kind: 'quota', sector: -1, title: 'Постачальник «оптимізує» тарифи', body: `Цього року квота менша ще на ${servers(QUOTA_DIP)}.` };
-  if (roll < .9) return { kind: 'windfall', sector: -1, title: 'Сусіди продали надлишок', body: `Разова поставка: цього року обчислень більше на ${servers(WINDFALL)}.` };
+  if (roll < .5) { const sector = Math.floor(next() * 7); return { kind: 'surge', sector, title: surges[sector][0], body: surges[sector][1] }; }
+  if (roll < .66) return { kind: 'quota', sector: -1, title: 'Постачальник «оптимізує» тарифи', body: `Цього року квота менша ще на ${servers(QUOTA_DIP)}.` };
+  if (roll < .82) return { kind: 'outage', sector: -1, title: 'Аварія в дата-центрі', body: 'Згоріла підстанція, запасних частин немає. Цього року працює лише половина власних серверів.' };
+  if (roll < .92) return { kind: 'windfall', sector: -1, title: 'Сусіди продали надлишок', body: `Разова поставка: цього року обчислень більше на ${servers(WINDFALL)}.` };
   return calm;
 }
 const crisisCompute = (crisis: Crisis) => crisis.kind === 'quota' ? -QUOTA_DIP : crisis.kind === 'windfall' ? WINDFALL : 0;
@@ -217,14 +226,14 @@ export function resolveRound(before: State, allocations: number[], policy: Polic
     events.push({ at: .36, sector: 3, title: transportReady ? 'Обладнання доставлено' : 'Дата-центр чекає на обладнання', body: transportReady
       ? (state.project ? `Логістика та ІТ підтримують будівництво. До запуску — ${stages(state.project)}.` : 'Останній етап будівництва завершено.')
       : `Для будівництва логістика та ІТ мають працювати щонайменше на ${BUILD_THRESHOLD}%. Цього року етап не завершено.` });
-    if (state.project === 0) { state.owned += CENTER_COMPUTE; events.push({ at: .72, sector: 0, title: 'Власний дата-центр у мережі', body: `Додано ${servers(CENTER_COMPUTE)} власної потужності. Її доступність залежатиме від енергетики, а утримання коштуватиме ${money(CENTER_UPKEEP)} щороку.` }); }
+    if (state.project === 0) { state.owned += CENTER_COMPUTE; events.push({ at: .72, sector: 0, title: 'Власний дата-центр у мережі', body: `Додано ${servers(CENTER_COMPUTE)} власної потужності. Щоб вона працювала, потрібні струм та інженери: навички ІТ від ${staffNeed(state)}%. Утримання коштуватиме ${money(CENTER_UPKEEP)} щороку.` }); }
   } else {
     const missed = Math.max(0, Math.round(100 - s[3].service));
     events.push({ at: .36, sector: 3, title: missed ? 'Частина вантажів затримується' : 'Вантажі прибувають вчасно', body: `Логістика працює на ${Math.round(s[3].service)}%. ${missed ? `${missed}% перевезень не виконано, а бюджет отримує дохід лише від доставленої продукції.` : 'Уся продукція доїхала до покупців.'}` });
   }
   if (hands) events.push({ at: .52, sector: target, title: policy === 'train' ? 'Працівники повертаються до практики' : 'Ручний режим запроваджено', body: `Навички в галузі «${names[target]}» зростають. Цього року частина послуг призупинена заради навчання.${policy === 'manual' ? ' Людям це не подобається.' : ''}` });
   else events.push({ at: .52, sector: 1, title: s[1].service >= 80 ? 'Навчання триває' : 'Заняття скорочено', body: `Освіта — ${Math.round(s[1].service)}%. Її стан впливає на ефективність перепідготовки наступного року.` });
-  events.push({ at: .68, sector: 4, title: s[4].service >= 80 ? 'Мережа тримає навантаження' : 'Енергетики обмежують потужність', body: boom ? `Енергетика працює на ${Math.round(s[4].service)}%.` : `Доступність власних серверів наступного року — ${Math.round(clamp(s[4].service / 100, 0, 1) * 100)}%.` });
+  events.push({ at: .68, sector: 4, title: s[4].service >= 80 ? 'Мережа тримає навантаження' : 'Енергетики обмежують потужність', body: boom ? `Енергетика працює на ${Math.round(s[4].service)}%.` : `Струму вистачить на ${Math.round(clamp(s[4].service / 100, 0, 1) * 100)}% власних серверів.` });
 
   const failed = s.filter(v => v.service < FAILURE_LEVEL);
   events.push({ at: .85, sector: s[5].service < s[6].service ? 5 : 6, title: s[5].service < 75 ? 'Черги на допомогу зростають' : 'Країна підбиває підсумки року', body: `Лікарні — ${Math.round(s[5].service)}%, держпослуги — ${Math.round(s[6].service)}%. Люди оцінюють роботу уряду.${failed.length ? ` Збій: ${failed.map(v => v.name).join(', ')}.` : ''}` });
@@ -251,12 +260,14 @@ export function resolveRound(before: State, allocations: number[], policy: Polic
     if (boom) sector.automation = clamp(sector.automation + DRIFT * slow + (policy === 'automate' && i === target ? AUTOMATE_GAIN : 0), 0, 100);
   });
 
+  const idle = state.owned - Math.floor(state.owned * clamp(s[0].reserve / staffNeed(state), 0, 1));
+  if (!boom && idle > 0) events.push({ at: .76, sector: 0, title: 'Сервери стоять без інженерів', body: `Навички ІТ — ${Math.floor(s[0].reserve)}% за потрібних ${staffNeed(state)}%. Обслуговувати залізо без чужого ШІ вміють не всі: ${servers(idle)} простоюють.` });
   state.collapsed = s.filter(v => v.service < COLLAPSE_LEVEL).length >= 2 ? state.collapsed + 1 : 0;
   state.round++;
   const shock = state.round === SHOCK_ROUND;
   if (state.round > SHOCK_ROUND) state.imports = Math.max(MIN_IMPORT, state.imports - IMPORT_CUT);
   state.crisis = crisisFor(state.seed, state.round);
-  state.capacity = state.round < SHOCK_ROUND ? 0 : Math.max(0, state.imports + Math.floor(state.owned * clamp(s[4].service / 100, 0, 1)) + crisisCompute(state.crisis));
+  state.capacity = state.round < SHOCK_ROUND ? 0 : Math.max(0, state.imports + ownedCompute(state) + crisisCompute(state.crisis));
   if (shock) proportional(state).forEach((n, i) => s[i].allocation = n);
 
   let ending: string | null = null;

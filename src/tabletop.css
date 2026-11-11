@@ -1,0 +1,146 @@
+
+/* AI CRISIS — tabletop skin, isolated from the simulation and city/report views.
+   This is an additive stylesheet; selectors intentionally scoped to cabinet. */
+:root{--wood:#4c2e1c;--parchment:#f4dfba;--red-ink:#812721;--olive:#647d35;--paper-ink:#271a13}
+body:has(.desk){background:#422617;color:var(--paper-ink);font-family:Georgia,'Times New Roman',serif}
+body:has(.desk) .masthead{
+  min-height:104px;height:auto;padding:13px 2.4%;flex-wrap:wrap;gap:12px;
+  background:linear-gradient(95deg,#fae8c6,#e7c89e 52%,#f5deba);
+  border-bottom:8px solid #5e3721;color:#251911;
+  box-shadow:0 6px 10px #1e130c70;position:relative
+}
+body:has(.desk) .masthead:after{content:'';position:absolute;inset:0;pointer-events:none;opacity:.19;background:repeating-linear-gradient(97deg,transparent 0 8px,#8b633e 9px,transparent 11px)}
+body:has(.desk) .brand{font:800 clamp(27px,3.35vw,57px)/.95 Georgia,serif;color:#28170d;letter-spacing:-1px;position:relative;padding-left:58px}
+body:has(.desk) .brand:before{content:'⚜';position:absolute;left:0;top:-4px;font:48px Georgia,serif;color:#412619}
+body:has(.desk) .brand em{color:#28170d}
+body:has(.desk) .brand small{font:700 10px/1.3 Georgia,serif;color:#573623;letter-spacing:.1px;margin-top:5px}
+body:has(.desk) .hud{gap:clamp(8px,2vw,28px);flex:1;justify-content:flex-end;position:relative;z-index:1}
+body:has(.desk) .hud>div{border-left:1px solid #65432e88;min-width:0;padding-left:clamp(8px,1.5vw,22px)}
+body:has(.desk) .hud span{font:700 11px Georgia,serif;color:#553d2a;letter-spacing:0}
+body:has(.desk) .hud b{font:700 clamp(21px,2vw,31px) Georgia,serif}
+body:has(.desk) .hud i{font:15px Georgia,serif;color:#5c412e}
+body:has(.desk) .header-actions{position:relative;z-index:2;gap:8px}
+body:has(.desk) .phase{font:700 16px Georgia,serif;background:#faf0d9;border:3px double var(--red-ink);color:var(--red-ink);padding:8px 14px}
+body:has(.desk) .phase i{background:var(--red-ink);box-shadow:none}
+body:has(.desk) .sound{color:#5b3627}
+.desk{
+  padding:20px clamp(10px,1.4vw,30px) 28px;min-height:calc(100vh - 104px);
+  background-color:var(--wood);
+  background-image:radial-gradient(ellipse at 30% 10%,#aa75442a,transparent 48%),repeating-linear-gradient(1deg,#00000015 0 2px,#945d3424 3px 5px,transparent 8px 19px),linear-gradient(90deg,#321c10,#624023 20%,#4b2d1a 65%,#392010);
+}
+.desk-heading{display:none}
+.desk .cabinet-layout{display:grid;grid-template-columns:minmax(235px,26%) minmax(0,1fr) minmax(190px,19%);gap:22px 17px;align-items:start}
+.desk .decision-area{display:contents}
+.desk .allocation-heading{grid-column:1/-1;grid-row:1;margin:0;background:linear-gradient(95deg,#ead2aa,#f8e7ca,#e9cea0);border:3px double #8d3129;padding:8px 18px;color:#3e281b;box-shadow:0 4px 6px #0004;justify-content:space-between}
+.desk .allocation-heading h2{font:700 clamp(20px,2vw,31px) Georgia,serif;color:var(--red-ink);margin:3px 0}
+.desk .allocation-heading .eyebrow{color:#6f5136}
+.desk .remaining strong{color:var(--red-ink)}
+.desk .remaining span{color:#583723;font-size:10px}
+.desk .paper{background-color:#f1dbb6;background-image:repeating-linear-gradient(3deg,transparent 0 7px,#79512b09 8px 9px),linear-gradient(115deg,#ffedd0,#edd0a6 66%,#e8c79b);border:2px solid #bb865f;box-shadow:inset 0 0 0 4px #f7e5c7,inset 0 0 0 5px #a24b3899,0 5px 0 #ae835d,0 11px 18px #1b0e086e;color:#281b12}
+.desk .sector-grid{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:clamp(7px,.7vw,15px)}
+.desk .sector{height:clamp(300px,27vw,410px);padding:18px 11px 12px;border-radius:5px 8px 6px 7px;display:flex;flex-direction:column;position:relative;overflow:visible}
+.desk .sector:before,.desk .policy:before{content:'⌇';position:absolute;top:-17px;left:21%;font:48px/.9 Georgia,serif;transform:rotate(20deg);color:#ac7e48;text-shadow:1px 1px #fee9c8,-1px -1px #533b27;pointer-events:none;z-index:2}
+.desk .sector-title{display:flex;flex-direction:column-reverse;justify-content:flex-end;min-height:clamp(120px,13vw,185px);text-align:center;gap:6px}
+.desk .sector-title h3{font:700 clamp(14px,1.45vw,25px)/1.05 Georgia,serif;color:#521c19;letter-spacing:-.5px}
+.desk .sector-icon{display:flex;align-items:center;justify-content:center;flex:1;font-size:clamp(38px,4vw,69px);color:#382f25;filter:sepia(1) contrast(1.5);margin:0;text-shadow:2px 1px #bfa17b}
+.desk .service-label{margin-top:10px}
+.desk .service-label span,.desk .reserve-label{font:700 clamp(11px,.98vw,16px) Georgia,serif}
+.desk .service-label b{font:700 clamp(14px,1.15vw,20px) Georgia,serif;background:#f6eccf;border:1px solid #65723b;padding:1px 4px;border-radius:3px;color:#261d15}
+.desk .meter{height:12px;margin:7px 0 11px;background:#bcb096;border-radius:2px;box-shadow:inset 0 1px 3px #48371e44;overflow:hidden}
+.desk .meter i{background:#6b8136}
+.desk .reserve-label{margin-top:0;border-top:1px solid #6f4b3270;padding-top:8px}
+.desk .reserve-label b{float:right}
+.desk .reserve-label span{font:11px/1.5 Georgia,serif;color:#65523f}
+.desk .allocation-control{margin-top:auto;border-top:1px dashed #855b42;padding-top:12px;gap:5px}
+.desk .allocation-control strong{font:700 21px Georgia,serif;color:#3b281b}
+.desk .allocation-control button{width:42px;height:42px;flex:none;font:700 26px Georgia,serif;color:#713025;background:#f3e4c7;border:1px solid #9e795c;box-shadow:0 2px 2px #0003}
+.desk .allocation-control button:disabled{opacity:.4}
+.desk .briefing{grid-column:1;grid-row:3;transform:rotate(-2deg);padding:18px 16px 15px;min-height:360px;max-height:450px;overflow:auto;border-top:4px solid #ebd3aa}
+.desk .newspaper-name{font:700 clamp(21px,2vw,33px) Georgia,serif}
+.desk .edition{font:11px Georgia,serif}
+.desk .news-image{height:105px;filter:sepia(1) grayscale(1) contrast(1.5)}
+.desk .briefing h2{font:800 clamp(25px,2.6vw,42px)/1.04 Georgia,serif;color:#531c1b}
+.desk .briefing p{font:clamp(12px,.95vw,15px)/1.42 Georgia,serif}
+.desk .briefing .crisis-note,.desk .briefing .checks,.desk .briefing .floor-note,.desk .briefing .project-note,.desk .briefing .deal-note,.desk .briefing .text-button{font-size:11px}
+.desk .policy-heading{grid-column:2;grid-row:4;min-height:45px;color:#f1dfb9}
+.desk .policy-heading select{min-height:40px;font:14px Georgia,serif}
+.desk .policy-grid{grid-column:2;grid-row:3;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.desk .policy{min-height:360px;padding:19px 12px 12px;border-radius:3px;display:flex;flex-direction:column;gap:6px}
+.desk .policy:hover:enabled{transform:translateY(-4px)}
+.desk .policy.selected{outline:4px solid #e9c68e;border-color:#8a2923}
+.desk .policy-category{font:700 9px Georgia,serif;letter-spacing:1px;color:#8c4d3e;order:1;min-height:0}
+.desk .policy h3{font:700 clamp(18px,1.5vw,25px)/1.1 Georgia,serif;color:#7d2724;order:0}
+.desk .policy-art{order:2;height:clamp(90px,9vw,140px);margin:4px -3px;background-size:400% auto;filter:sepia(1) saturate(.65) contrast(1.18)}
+.desk .policy p{order:3;font:clamp(11px,.88vw,14px)/1.35 Georgia,serif;margin:0;flex:1}
+.desk .policy .effect{order:4;border-block:1px solid #a8866159;padding:8px 0;color:#5b4e2d;font:700 clamp(10px,.77vw,12px)/1.4 Georgia,serif}
+.desk .policy footer{order:5;display:flex;min-height:38px;background:#832c27;border-radius:18px;justify-content:center;gap:8px;color:#fff2d7;font:700 13px Georgia,serif;border:0;padding:8px;margin-top:auto}
+.desk .policy .radio{color:#f6cf86;font-size:16px}
+.desk .signature-row{grid-column:3;grid-row:3;align-self:stretch;display:flex;align-items:center;justify-content:center;padding:18px 12px;background:linear-gradient(120deg,#d8b88d,#f4dfb9);border:2px solid #9e6a4f;box-shadow:0 9px 14px #0006;min-height:360px;position:relative}
+.desk .signature-row:before{content:'✺';position:absolute;right:8px;top:3px;color:#8b3028;font-size:65px;transform:rotate(-20deg);opacity:.6}
+.desk .signature-row p{display:none}
+.desk .sign-button{width:100%;min-height:135px;border:5px double #f3dfb7;border-radius:14px;outline:4px solid #812823;outline-offset:2px;background:#872b28;color:#fff0d8;font:700 clamp(20px,2.1vw,35px)/1.2 Georgia,serif;text-transform:uppercase;text-align:center;box-shadow:0 8px 0 #481c17,0 13px 17px #0005;padding:18px 10px}
+.desk .sign-button span{display:none}
+.desk .forecast-strip{grid-column:2/-1;grid-row:5;margin:0;background:#f0dcb7;color:#36281e;border:2px solid #ac825b;box-shadow:0 4px 7px #0005}
+.desk .forecast-strip .eyebrow{color:#7a3c30}
+.desk .forecast-items b{color:#5e2a20}
+.desk .forecast-items span{color:#57452e}
+.desk .forecast-strip .good{color:#3d6332}.desk .forecast-strip .warning{color:#966a25}.desk .forecast-strip .danger{color:#a33f31}
+.desk .contract-terms{grid-column:1/-1;grid-row:6;margin:0}
+.desk .desk-footer{color:#f0d1a6}
+@media(max-width:1320px) and (min-width:701px){
+ .desk .cabinet-layout{grid-template-columns:minmax(215px,27%) minmax(0,1fr)}
+ .desk .sector-grid{grid-template-columns:repeat(7,minmax(135px,1fr));overflow-x:auto;scroll-snap-type:x mandatory;padding:12px 6px 20px}
+ .desk .sector{scroll-snap-align:start}
+ .desk .briefing{grid-row:3}.desk .policy-grid{grid-column:2;grid-row:3;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .desk .signature-row{grid-column:1/-1;grid-row:5;min-height:135px}
+ .desk .sign-button{min-height:90px}.desk .policy-heading{grid-row:4}
+ .desk .forecast-strip{grid-column:1/-1;grid-row:6}
+ .desk .contract-terms{grid-row:7}
+}
+@media(max-width:700px){
+ body:has(.desk) .masthead{min-height:0;padding:8px 12px;gap:8px}
+ body:has(.desk) .brand{font-size:24px;padding-left:28px}
+ body:has(.desk) .brand:before{font-size:26px;top:0}
+ body:has(.desk) .brand small{font-size:7px}
+ body:has(.desk) .hud{order:3;flex-basis:100%;gap:2px;justify-content:space-between}
+ body:has(.desk) .hud>div{padding-left:7px}
+ body:has(.desk) .hud span{font-size:9px}
+ body:has(.desk) .hud b{font-size:18px}
+ body:has(.desk) .phase{font-size:12px;padding:4px 7px}
+ .desk{padding:10px}
+ .desk .cabinet-layout{display:flex;flex-direction:column;gap:12px}
+ .desk .decision-area{display:contents}
+ .desk .allocation-heading{width:100%;padding:8px}
+ .desk .allocation-heading h2{font-size:19px}
+ .desk .allocation-heading .remaining strong{font-size:25px}
+ .desk .sector-grid{width:100%;display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:12px 5px 18px;scrollbar-width:thin}
+ .desk .sector{width:min(62vw,260px);min-width:min(62vw,260px);height:310px;scroll-snap-align:start;padding:17px 12px 12px}
+ .desk .sector-title{min-height:132px}
+ .desk .sector-title h3{font-size:21px}
+ .desk .sector-icon{font-size:55px}
+ .desk .service-label span,.desk .reserve-label{font-size:13px}
+ .desk .allocation-control button{width:48px;height:46px}
+ .desk .policy-heading{order:1;width:100%}
+ .desk .policy-grid{order:2;width:100%;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding:12px 6px 20px}
+ .desk .policy{min-width:min(66vw,270px);width:min(66vw,270px);min-height:325px;scroll-snap-align:start;padding:17px}
+ .desk .policy h3{font-size:22px}
+ .desk .policy-art{height:110px}
+ .desk .policy p{font-size:13px}
+ .desk .signature-row{order:3;width:100%;min-height:100px;padding:13px}
+ .desk .sign-button{min-height:74px;font-size:24px}
+ .desk .forecast-strip{order:4;width:100%}
+ .desk .briefing{order:5;width:100%;transform:none;max-height:none;min-height:0}
+ .desk .contract-terms{order:6;width:100%}
+}
+@media(max-width:950px) and (orientation:landscape){
+ body:has(.desk) .masthead{padding:6px 12px}
+ .desk .sector-grid{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:10px 5px 17px}
+ .desk .sector{min-width:235px;width:235px;height:285px}
+ .desk .sector-title{min-height:114px}
+ .desk .sector-icon{font-size:47px}
+ .desk .policy-grid{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:10px 5px 17px}
+ .desk .policy{min-width:250px;width:250px;min-height:310px}
+ .desk .policy-art{height:105px}
+ .desk .allocation-control button{width:48px;height:45px}
+ .desk .sign-button{min-height:65px}
+}

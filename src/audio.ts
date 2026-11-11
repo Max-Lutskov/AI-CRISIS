@@ -1,5 +1,5 @@
 // Звук гри. Музика й ефекти синтезуються в браузері через Web Audio.
-// Місто — справжні записи (CC0, OpenGameArt): вулиця, птахи й натовп у public/assets/audio.
+// Місто — справжні записи (CC0): вулиця й птахи з OpenGameArt, клаксон із Wikimedia Commons, у public/assets/audio.
 // Музика генеративна: акорди й рідкі ноти складаються на ходу й залежать від фази та напруги.
 
 export type Sfx = 'click' | 'up' | 'down' | 'card' | 'paper' | 'stamp' | 'wire' | 'alarm' | 'press' | 'shock' | 'victory' | 'defeat';
@@ -15,9 +15,10 @@ let ctx: AudioContext | null = null;
 let musicBus: GainNode, sfxBus: GainNode, airBus: GainNode, hall: GainNode, echo: GainNode;
 let hiss: AudioBuffer;
 let mood: Mood = 'menu', place: Place = 'none', tension = 0, life = 1;
-let nextBar = 0, bar = 0, nextAir = 0, nextTick = 0, last = 69;
-type Loop = 'street' | 'birds' | 'crowd';
+let nextBar = 0, bar = 0, nextAir = 0, nextHonk = 0, nextTick = 0, last = 69;
+type Loop = 'street' | 'birds';
 const loops: Partial<Record<Loop, GainNode>> = {};
+const horns: AudioBuffer[] = [];
 
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
 const chance = (p: number) => Math.random() < p;
@@ -55,7 +56,8 @@ function boot(): AudioContext {
   const damp = ctx.createBiquadFilter(); damp.type = 'lowpass'; damp.frequency.value = 1800;
   echo = ctx.createGain(); echo.connect(delay); delay.connect(damp); damp.connect(feedback); feedback.connect(delay); damp.connect(musicBus); damp.connect(hall);
 
-  for (const name of ['street', 'birds', 'crowd'] as Loop[]) void loadLoop(name);
+  for (const name of ['street', 'birds'] as Loop[]) void loadLoop(name);
+  for (const name of ['horn1', 'horn2']) void fetch(`assets/audio/${name}.mp3`).then(r => r.arrayBuffer()).then(data => ctx!.decodeAudioData(data)).then(buffer => horns.push(buffer)).catch(() => { /* без клаксонів місто просто тихіше */ });
   setInterval(schedule, 200);
   document.addEventListener('visibilitychange', () => { if (document.hidden) void ctx!.suspend(); else void ctx!.resume(); });
   return ctx;
@@ -166,6 +168,25 @@ async function loadLoop(name: Loop) {
     loops[name] = gain;
   } catch { /* запис не завантажився — місто лишиться без цього шару */ }
 }
+/** Один сигнал машини. Висота, гучність і бік щоразу інші, тож звучить як різні авто на різній відстані. */
+function honk(at = 0, long = false) {
+  if (!horns.length) return;
+  const c = ctx!; const t = c.currentTime + at;
+  const source = c.createBufferSource(); source.buffer = horns[Math.floor(Math.random() * horns.length)];
+  source.playbackRate.value = between(.78, 1.3);
+  const far = Math.random(), dur = long ? between(.7, 1.6) : source.buffer.duration / source.playbackRate.value;
+  // Довгий роздратований сигнал: середина запису крутиться по колу.
+  if (long) { source.loop = true; source.loopStart = .1; source.loopEnd = source.buffer.duration - .12; }
+  const gain = c.createGain(); gain.gain.setValueAtTime(.12 + (1 - far) * .4, t); gain.gain.setTargetAtTime(0, t + dur - .06, .03);
+  const pan = c.createStereoPanner(); pan.pan.value = between(-.9, .9);
+  const send = c.createGain(); send.gain.value = .15 + far * .5;
+  source.connect(gain); gain.connect(pan); pan.connect(airBus); gain.connect(send); send.connect(hall);
+  source.start(t); source.stop(t + dur + .2);
+}
+/** Затор: кілька машин сигналять одна за одною. */
+function jam(cars: number) {
+  for (let i = 0, at = 0; i < cars; i++, at += between(.15, .7)) { honk(at, chance(.3)); if (chance(.4)) honk(at + between(.25, .4)); }
+}
 // Що чути в місті поверх записів. Кожен звук — окрема коротка сценка.
 const street: Record<string, () => void> = {
   tram: () => { for (const at of [0, .32]) { tone(1560, { dur: .7, gain: .05, at, out: airBus, wet: .6 }); tone(2093, { dur: .5, gain: .025, at, out: airBus, wet: .6 }); } },
@@ -179,8 +200,6 @@ function air(now: number) {
   const levels: Record<Loop, number> = {
     street: city ? .35 + busy * .75 : place === 'office' ? .1 : 0,
     birds: city ? (mood === 'boom' ? .7 : .35 * (1 - tension)) : 0,
-    // Протест під вікнами наростає разом із напругою.
-    crowd: city && mood === 'deficit' ? Math.max(0, tension - .2) * .9 : 0,
   };
   for (const name of Object.keys(levels) as Loop[]) loops[name]?.gain.setTargetAtTime(levels[name], now, .8);
   if (place === 'office' && now >= nextTick) {
@@ -188,7 +207,14 @@ function air(now: number) {
     noise({ freq: nextTick % 2 < 1 ? 3400 : 2700, q: 5, dur: .035, gain: .45, out: airBus });
     nextTick = Math.max(nextTick, now) + 1;
   }
-  if (!city || now < nextAir) return;
+  if (!city) return;
+  // У спокійному місті хтось зрідка сигналить; що гірші справи, то частіші й довші затори.
+  if (now >= nextHonk) {
+    const stuck = mood === 'deficit' ? tension : 0;
+    nextHonk = now + between(5, 11) * (1 - stuck * .7);
+    if (chance(.25 + stuck)) jam(2 + Math.round(stuck * 5 + Math.random() * 2)); else honk();
+  }
+  if (now < nextAir) return;
   nextAir = now + between(4, 9) / Math.max(.4, life);
   const scenes = chance(tension * .7) ? ['siren'] : ['tram', 'factory', 'train'];
   street[scenes[Math.floor(Math.random() * scenes.length)]]();
@@ -211,7 +237,7 @@ export const audio = {
   /** Настрій музики, місце дії, напруга від 0 до 1 і жвавість міста (1 — усе працює). */
   scene(next: Mood, where: Place, stress = 0, bustle = 1) {
     if (next !== mood) { bar = 0; last = moods[next].scale[3]; }
-    if (where === 'city' && place !== 'city') nextAir = 0;
+    if (where === 'city' && place !== 'city') { nextAir = 0; nextHonk = ctx ? ctx.currentTime + between(1.5, 4) : 0; }
     mood = next; place = where; tension = Math.max(0, Math.min(1, stress)); life = Math.max(.15, Math.min(1.2, bustle));
   },
   volume: (kind: keyof Volume) => volume[kind],
